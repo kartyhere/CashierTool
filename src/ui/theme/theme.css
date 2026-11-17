@@ -76,7 +76,7 @@ input:focus { outline: none; border-color: var(--brand); background: var(--bg); 
 .menu button:hover:not(:disabled) .num, .menu button:focus-visible .num, .menu button:hover:not(:disabled) .key, .menu button:focus-visible .key { color: var(--ink); }
 .menu button.soon { color: var(--muted); }
 .menu button.soon:hover, .menu button.soon:focus-visible { background: var(--fill); color: var(--ink); }
-.statusbar { border-top: 1px solid var(--line); padding: 8px 24px; color: var(--muted); font: 400 11px 'Geist Mono', monospace; text-transform: uppercase; letter-spacing: 0.06em; display: flex; gap: 20px; flex-wrap: wrap; }
+.statusbar { border-top: 1px solid var(--line); padding: 8px 24px; color: var(--muted); font: 700 11px 'Geist Mono', monospace; text-transform: uppercase; letter-spacing: 0.06em; display: flex; gap: 20px; flex-wrap: wrap; }
 
 /* Dialog / lock overlay */
 .overlay { position: fixed; inset: 0; background: var(--bg); display: flex; align-items: center; justify-content: center; padding: 24px; z-index: 10; }
@@ -127,7 +127,7 @@ tr[tabindex]:focus .minus, tr[tabindex]:hover .minus { color: var(--ink); }
 .dialog .lines div { display: flex; justify-content: space-between; gap: 16px; font-size: 14px; }
 .dialog .lines span:first-child { color: var(--muted); }
 .gateway { align-items: start; }
-.menu { align-content: start; grid-auto-rows: 64px; }
+.menu { align-content: start; grid-auto-rows: 50px; grid-template-columns: 1fr; max-width: 520px; }
 .menu button { align-items: center; padding-top: 0; padding-bottom: 0; }
 .dash td { padding-top: 3px; padding-bottom: 3px; }
 

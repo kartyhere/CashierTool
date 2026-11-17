@@ -9,16 +9,28 @@
   const when = (iso) => (iso ? new Date(iso).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }) : 'never');
   const kb = (n) => `${Math.max(1, Math.round(n / 1024))} KB`;
 
-  async function open(tabKey = 'general') {
+  // where: 'tabs' puts the cursor on the tab bar (so Left / Right change tab); 'content' puts it in the page itself
+  // (used after an action inside a tab, e.g. adding a user).
+  async function open(tabKey = 'general', where = 'tabs') {
     if (tabKey === 'lists') { window.CashDeskScreens.lists.open(); return; }
     const index = TABS.findIndex(([k]) => k === tabKey);
     const go = (i) => { open(TABS[(i + TABS.length) % TABS.length][0]); return true; };
-    const hotkeys = { 'Alt+ArrowLeft': () => go(index - 1), 'Alt+ArrowRight': () => go(index + 1) };
+    const hotkeys = { 'Alt+ArrowLeft': () => go(index - 1), 'Alt+ArrowRight': () => go(index + 1), 'Alt+ArrowUp': () => { focusTab(); return true; } };
     TABS.forEach(([k], i) => { hotkeys[`Alt+${i + 1}`] = () => go(i); });
     const tabs = h('div', { class: 'tabs' }, TABS.map(([k, label], i) => h('button', { type: 'button', class: k === tabKey ? 'on' : '', on: { click: () => go(i) } }, `${i + 1} ${label}`)));
+    const focusTab = () => tabs.querySelector('.on').focus();
+    let body = null;
+    // On the tab bar: Left / Right change tab, Down or Enter go into the page.
+    tabs.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowLeft') { e.preventDefault(); go(index - 1); }
+      else if (e.key === 'ArrowRight') { e.preventDefault(); go(index + 1); }
+      else if (e.key === 'ArrowDown' || e.key === 'Enter') { e.preventDefault(); if (body) Keys.focusFirst(body); }
+    });
     const done = (node, hints, extra = {}) => {
-      A.show(page({ title: `Settings · ${TABS[index][1]}`, hints: [...hints, 'Alt+← → tabs', 'Esc back'], body: [tabs, node] }));
+      body = node;
+      A.show(page({ title: `Settings · ${TABS[index][1]}`, hints: [...hints, 'Tabs: ← → switch, ↓ in, Alt+↑ back', 'Esc back'], body: [tabs, node] }));
       Keys.setScreen({ root: document.querySelector('.screen'), onEsc: () => A.gateway(), hotkeys: { ...hotkeys, ...(extra.hotkeys || {}) }, ...(extra.screen || {}), menu: extra.menu ? { root: document.querySelector('.screen') } : undefined });
+      if (where === 'content') Keys.focusFirst(node); else focusTab();
     };
 
     try {
@@ -52,7 +64,6 @@
       fields.map((f, i) => h('label', { class: 'field' }, h('span', {}, f.label), inputs[i])), error,
       h('div', { class: 'row card' }, h('button', { class: 'primary', type: 'button', on: { click: save } }, 'Save'))),
     ['Enter next', 'Enter on the last: save'], { screen: { onSubmit: save } });
-    inputs[0].focus();
   }
 
   async function users(done, reopen) {
@@ -60,7 +71,7 @@
     const selected = () => { const r = document.activeElement; return r && r.dataset && r.dataset.id ? list.find((u) => String(u.id) === r.dataset.id) : null; };
     const rows = list.map((u) => h('tr', { tabindex: '0', class: u.active ? '' : 'gone', data: { menuItem: '1', id: String(u.id) } },
       h('td', {}, u.username, u.active ? null : h('span', { class: 'tag' }, 'off')), h('td', {}, u.role === 'admin' ? 'Admin' : 'Cashier')));
-    const act = async (fn) => { try { await fn(); reopen('users'); } catch (e) { A.toast(e.message); } };
+    const act = async (fn) => { try { await fn(); reopen('users', 'content'); } catch (e) { A.toast(e.message); } };
     async function add() {
       const username = await A.promptDialog({ title: 'New user', label: 'Username (3 to 40 characters)' }); if (username === null) return;
       const password = await A.promptDialog({ title: 'New user', label: 'Password or PIN (4 or more characters)', secret: true }); if (password === null) return;
@@ -85,7 +96,7 @@
     const selected = () => { const r = document.activeElement; return r && r.dataset && r.dataset.id ? list.find((d) => d.id === r.dataset.id) : null; };
     const toggle = async () => {
       const d = selected(); if (!d) return true;
-      try { await api.denominations.hide(d.id, !d.hidden); reopen('denoms'); } catch (e) { A.toast(e.message); }
+      try { await api.denominations.hide(d.id, !d.hidden); reopen('denoms', 'content'); } catch (e) { A.toast(e.message); }
       return true;
     };
     const rows = list.map((d) => h('tr', { tabindex: '0', class: d.hidden ? 'gone' : '', data: { menuItem: '1', id: d.id } },
@@ -104,10 +115,10 @@
       const a1 = await A.promptDialog({ title: 'Backup password', label: 'New backup password (8 or more characters). You need it to restore. Write it down.', secret: true }); if (a1 === null) return;
       const a2 = await A.promptDialog({ title: 'Backup password', label: 'Type it again', secret: true }); if (a2 === null) return;
       if (a1 !== a2) { A.toast('The two passwords are not the same'); return; }
-      await act(async () => { await api.backup.setPassword(a1); A.toast('Backup password set'); reopen('backup'); });
+      await act(async () => { await api.backup.setPassword(a1); A.toast('Backup password set'); reopen('backup', 'content'); });
     };
-    const now = () => act(async () => { const r = await api.backup.now(); A.toast(`Backed up: ${r.name}`); reopen('backup'); });
-    const folder = () => act(async () => { const r = await api.backup.chooseFolder(); if (!r.cancelled) { A.toast('Backup folder changed'); reopen('backup'); } });
+    const now = () => act(async () => { const r = await api.backup.now(); A.toast(`Backed up: ${r.name}`); reopen('backup', 'content'); });
+    const folder = () => act(async () => { const r = await api.backup.chooseFolder(); if (!r.cancelled) { A.toast('Backup folder changed'); reopen('backup', 'content'); } });
     async function restore() {
       const f = selected(); if (!f) { A.toast('Choose a backup first'); return; }
       const password = await A.promptDialog({ title: `Restore ${f.name}`, label: 'Backup password', secret: true }); if (password === null) return;

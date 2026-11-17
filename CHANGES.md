@@ -1,5 +1,10 @@
 # Cash Desk changes
 
+## 0.10.0 — Easier navigation
+- Gateway is now one vertical list. Up and Down move one line at a time (before, the two columns made the cursor jump sideways).
+- Settings opens with the cursor on the tab bar, not in the first box. Left and Right change tab, Down or Enter go into the page, Alt+Up comes back to the tabs. After an action inside a tab (adding a user, backing up) the cursor stays in the page.
+- The key-hint line at the bottom of every screen is bold.
+
 ## 0.9.0 — Cash brought by the receiver
 - Voucher screen has a new box next to the amount: "Brought by receiver (₹)". Press Tab to reach it, Enter in either box carries on. Leave it empty for the usual flow.
 - The third payout card is now "Custom": it pays voucher + brought, and the receiver hands the brought cash back. The person's balance does not change. Example: voucher ₹263, receiver brings ₹7, you give ₹270 and take ₹7 back.
