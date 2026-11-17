@@ -160,8 +160,9 @@ test('upgrade from version 2: the data stays and the flag column appears', async
   vault.write('cashdesk.db', Buffer.from(db.export()));
   const { Store } = require('../src/db/store');
   const store = Store.open({ SQL, vault });
-  assert.equal(store.get('SELECT MAX(version) AS v FROM migrations').v, 3);
-  assert.equal(store.get('SELECT cash_delta, flag FROM entries').cash_delta, 500);
+  assert.equal(store.get('SELECT MAX(version) AS v FROM migrations').v, 4);
+  assert.equal(store.get('SELECT cash_delta, flag, parts_json FROM entries').cash_delta, 500);
+  assert.equal(store.get('SELECT can_edit FROM users').can_edit, 1);
   assert.equal(store.all('SELECT * FROM expense_types').length, 7);
 });
 
@@ -199,18 +200,78 @@ test('brought cash empty: third card is the exact voucher amount; bad brought va
   assert.ok(typed.candidates.some((x) => x.exact && x.gross === 250));
 });
 
-test('several vouchers from one person: one payout, amounts kept in the remark', async () => {
+test('several vouchers: one payout, each voucher split on its own', async () => {
   const a = await ready();
   const ravi = a.person('Ravi', 'Sales');
+  const types = a.ledger.lists().expenseTypes;
+  const [t1, t2] = [types[0].id, types[1].id];
   const p = a.ledger.previewVoucher({ personId: ravi, amount: 263 });         // 120 + 143 together
-  const r = a.ledger.saveVoucher({ personId: ravi, amount: 263, parts: [120, 143], give: p.candidates[0].breakups[0], lines: [{ expenseTypeId: a.expense, amount: 263 }], remark: 'tea' });
+  const lines = [{ voucherNo: 1, expenseTypeId: t1, amount: 100 }, { voucherNo: 1, expenseTypeId: t2, amount: 20 }, { voucherNo: 2, expenseTypeId: t1, amount: 143 }];
+  const r = a.ledger.saveVoucher({ personId: ravi, amount: 263, parts: [120, 143], give: p.candidates[0].breakups[0], lines, remark: 'tea' });
   assert.equal(r.paid, 260);
-  const e = a.ledger.personHistory({ id: ravi, limit: 1 }).entries[0];
+  const e = a.ledger.entries().entries.find((x) => x.type === 'voucher');
+  assert.deepEqual(e.parts, [120, 143]);
   assert.equal(e.voucherAmount, 263);
-  assert.equal(e.remark, 'Vouchers 120 + 143 · tea');
-  assert.throws(() => a.ledger.saveVoucher({ personId: ravi, amount: 263, parts: [120, 100], give: {}, lines: [{ expenseTypeId: a.expense, amount: 263 }] }), /add up/);
-  assert.throws(() => a.ledger.saveVoucher({ personId: ravi, amount: 263, parts: [263, 0], give: {}, lines: [{ expenseTypeId: a.expense, amount: 263 }] }), /not valid/);
-  const one = a.ledger.saveVoucher({ personId: ravi, amount: 50, parts: [50], give: { N50: 1 }, lines: [{ expenseTypeId: a.expense, amount: 50 }] });
-  assert.equal(a.ledger.personHistory({ id: ravi, limit: 1 }).entries[0].remark || '', '');   // a single voucher adds nothing to the remark
-  assert.equal(one.paid, 50);
+  assert.equal(e.remark, 'tea');
+  assert.deepEqual(e.lines.map((l) => [l.voucherNo, l.amount]), [[1, 100], [1, 20], [2, 143]]);
+  // each voucher must add up on its own
+  const bad = [{ voucherNo: 1, expenseTypeId: t1, amount: 110 }, { voucherNo: 2, expenseTypeId: t1, amount: 143 }];
+  assert.throws(() => a.ledger.saveVoucher({ personId: ravi, amount: 263, parts: [120, 143], give: { N200: 1, N50: 1, N10: 1 }, lines: bad }), /voucher 1 must add up to ₹120/);
+  assert.throws(() => a.ledger.saveVoucher({ personId: ravi, amount: 263, parts: [120, 143], give: { N200: 1, N50: 1, N10: 1 }, lines: [{ expenseTypeId: t1, amount: 263 }] }), /not linked to a voucher/);
+  assert.throws(() => a.ledger.saveVoucher({ personId: ravi, amount: 263, parts: [120, 100], give: {}, lines }), /add up to the total/);
+  assert.throws(() => a.ledger.saveVoucher({ personId: ravi, amount: 263, parts: [263, 0], give: {}, lines }), /not valid/);
+});
+
+test('many vouchers at once (no small limit)', async () => {
+  const a = await ready();
+  const ravi = a.person('Ravi');
+  const parts = Array.from({ length: 20 }, (_, i) => 10 + i);              // 20 vouchers
+  const total = parts.reduce((t, n) => t + n, 0);
+  const lines = parts.map((n, i) => ({ voucherNo: i + 1, expenseTypeId: a.expense, amount: n }));
+  const r = a.ledger.saveVoucher({ personId: ravi, amount: total, parts, give: { N200: 1, N100: 1, N50: 1, N20: 2 }, back: {}, lines });
+  assert.ok(r.paid > 0);
+  assert.equal(a.ledger.entries().entries.find((x) => x.type === 'voucher').parts.length, 20);
+});
+
+test('a single voucher needs no voucherNo and stores none of the parts', async () => {
+  const a = await ready();
+  const ravi = a.person('Ravi');
+  a.pay(ravi, 50, { N50: 1 });
+  const e = a.ledger.entries().entries.find((x) => x.type === 'voucher');
+  assert.equal(e.parts, null);
+  assert.equal(e.lines[0].voucherNo, 1);
+});
+
+test('split later, then add the split afterwards; permission and closed day rules', async () => {
+  const a = await ready();
+  const ravi = a.person('Ravi');
+  const r = a.ledger.saveVoucher({ personId: ravi, amount: 120, parts: [70, 50], give: { N100: 1, C10: 2 }, lines: [], splitLater: true });
+  assert.equal(r.paid, 120);
+  assert.equal(a.ledger.dashboard().unsplit, 1);
+  assert.throws(() => a.ledger.saveVoucher({ personId: ravi, amount: 10, give: { C10: 1 }, lines: [] }), /Add at least one expense line/);   // not allowed without splitLater
+  const id = a.ledger.entries().entries.find((x) => x.type === 'voucher').id;
+  const split = [{ voucherNo: 1, expenseTypeId: a.expense, amount: 70 }, { voucherNo: 2, expenseTypeId: a.expense, amount: 50 }];
+  assert.throws(() => a.ledger.editVoucherSplit({ id, lines: [{ voucherNo: 1, expenseTypeId: a.expense, amount: 70 }] }), /voucher 2 must add up/);
+  a.ledger.editVoucherSplit({ id, lines: split, remark: 'fixed later' });
+  assert.equal(a.ledger.dashboard().unsplit, 0);
+  const e = a.ledger.entries().entries.find((x) => x.id === id);
+  assert.equal(e.lines.length, 2);
+  assert.equal(e.remark, 'fixed later');
+  // a cashier without the right cannot edit; with the right can; a closed day cannot be edited by anyone
+  a.ledger.userSave({ username: 'meena', password: 'abcd', role: 'cashier' });
+  const meena = a.ledger.usersList().users.find((u) => u.username === 'meena');
+  assert.equal(meena.canEdit, true);                                    // default: allowed
+  a.ledger.userSave({ id: meena.id, canEdit: false });
+  assert.equal(a.ledger.usersList().users.find((u) => u.username === 'meena').canEdit, false);
+  a.auth.signOut(); a.auth.signIn({ username: 'meena', password: 'abcd' });
+  assert.equal(a.ledger.entries().mayEdit, false);
+  assert.throws(() => a.ledger.editVoucherSplit({ id, lines: split }), /permission/);
+  a.auth.signOut(); a.auth.signIn({ username: 'karthik', password: '1234' });
+  a.ledger.userSave({ id: meena.id, canEdit: true });
+  a.auth.signOut(); a.auth.signIn({ username: 'meena', password: 'abcd' });
+  a.ledger.editVoucherSplit({ id, lines: split });
+  a.auth.signOut(); a.auth.signIn({ username: 'karthik', password: '1234' });
+  const day = a.ledger.today();
+  a.ledger.closeDay({ day, counted: a.ledger.drawer().rows.reduce((o, r) => ({ ...o, [r.id]: r.qty }), {}), confirm: true });
+  assert.throws(() => a.ledger.editVoucherSplit({ id, lines: split }), /closed/);
 });

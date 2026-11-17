@@ -1,5 +1,16 @@
 # Cash Desk changes
 
+## 0.12.0 — Split each voucher, edit the day's entries, restore from a file
+- **No limit on vouchers.** After each amount Enter adds the next box; Enter on an empty box, or typing 0, ends the list. The TOTAL (the amount to hand over) shows in large type from the first amount.
+- **Split per voucher.** The expense step now shows one section per voucher ("Voucher 2 of 3 · ₹143"). Each voucher's lines must add up to that voucher on its own. The payout, notes and balance still work on the combined total. Lines are saved with their voucher number.
+- **Split later (F8).** No time at the window? Press F8 on the split step to save the voucher without a split. A banner on the Gateway counts vouchers not split yet, and Entries marks them "NOT SPLIT YET".
+- **Edit the split afterwards.** Entries: choose a voucher, press E, fix the lines and remark, Enter on the remark saves. Only on a day that is not closed. Money, notes and balances are never changed by an edit (to change those, delete the entry and enter it again). Every edit is written to the audit log.
+- **Who may edit.** Admins always. For a cashier, Settings → Users → press E on the user to give or take away "May edit entries" (the default is yes).
+- **Restore from a backup file.** Settings → Backup has a "Restore from a backup file (O)" button: pick any .cdbak file (USB stick, another PC) and type the backup password. On a brand new PC the first-run screen has the same button (F9), so you can restore before creating any login. After restoring, this PC makes backups with the same password straight away.
+- The notes screen now explains Give and Back: Back is notes and coins the person hands back to you.
+- Database upgrades to version 4 by itself (new columns only; old vouchers keep working, an old single voucher has its lines as voucher 1).
+- Removed: the remark text "Vouchers 120 + 143". The amounts are now stored properly and shown in Entries.
+
 ## 0.11.0 — Several vouchers from one person
 - Voucher screen: after the first amount, press Enter and a "Voucher 2" box appears below it. Fill it and press Enter for a third, and so on (up to 10). Press Enter on an empty box to carry on. Backspace on an empty box removes it.
 - The vouchers are added into one total. You get one payout, one set of notes and one set of expense lines (they start from the total).

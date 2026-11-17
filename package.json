@@ -1,7 +1,7 @@
 {
   "name": "cash-desk",
   "productName": "Cash Desk",
-  "version": "0.11.0",
+  "version": "0.12.0",
   "description": "Head-office cashier desk: cash drawer by denomination, vouchers, person balances, bank deposits and day close.",
   "main": "src/main.js",
   "author": "Cash Desk",

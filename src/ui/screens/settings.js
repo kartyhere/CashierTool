@@ -70,7 +70,7 @@
     const { users: list } = await api.users.list();
     const selected = () => { const r = document.activeElement; return r && r.dataset && r.dataset.id ? list.find((u) => String(u.id) === r.dataset.id) : null; };
     const rows = list.map((u) => h('tr', { tabindex: '0', class: u.active ? '' : 'gone', data: { menuItem: '1', id: String(u.id) } },
-      h('td', {}, u.username, u.active ? null : h('span', { class: 'tag' }, 'off')), h('td', {}, u.role === 'admin' ? 'Admin' : 'Cashier')));
+      h('td', {}, u.username, u.active ? null : h('span', { class: 'tag' }, 'off')), h('td', {}, u.role === 'admin' ? 'Admin' : 'Cashier'), h('td', {}, u.canEdit ? 'Yes' : 'No')));
     const act = async (fn) => { try { await fn(); reopen('users', 'content'); } catch (e) { A.toast(e.message); } };
     async function add() {
       const username = await A.promptDialog({ title: 'New user', label: 'Username (3 to 40 characters)' }); if (username === null) return;
@@ -85,10 +85,11 @@
     }
     const role = () => { const u = selected(); if (u) act(() => api.users.save({ id: u.id, role: u.role === 'admin' ? 'cashier' : 'admin' })); return true; };
     const toggle = () => { const u = selected(); if (u) act(() => api.users.save({ id: u.id, active: !u.active })); return true; };
+    const edit = () => { const u = selected(); if (u) { if (u.role === 'admin') A.toast('An admin can always edit'); else act(() => api.users.save({ id: u.id, canEdit: !u.canEdit })); } return true; };
     done(h('div', { class: 'block panel', style: 'max-width:640px' },
-      h('p', { class: 'lede', style: 'margin-bottom:12px' }, 'A cashier can do the daily work but cannot open Settings, change users or reopen a closed day. Users are switched off, never deleted, so the log keeps their name.'),
-      h('table', {}, h('thead', {}, h('tr', {}, h('th', {}, 'Username'), h('th', {}, 'Role'))), h('tbody', {}, rows))),
-    ['↑ ↓ choose', 'A add', 'P new password', 'R admin / cashier', 'Space on / off'], { menu: true, hotkeys: { a: () => { add(); return true; }, A: () => { add(); return true; }, p: () => { reset(); return true; }, P: () => { reset(); return true; }, r: role, R: role, ' ': toggle, Space: toggle } });
+      h('p', { class: 'lede', style: 'margin-bottom:12px' }, 'A cashier can do the daily work but cannot open Settings, change users or reopen a closed day. "May edit entries" lets a cashier change the expense split of vouchers made on a day that is not closed yet. Users are switched off, never deleted, so the log keeps their name.'),
+      h('table', {}, h('thead', {}, h('tr', {}, h('th', {}, 'Username'), h('th', {}, 'Role'), h('th', {}, 'May edit entries'))), h('tbody', {}, rows))),
+    ['↑ ↓ choose', 'A add', 'P new password', 'R admin / cashier', 'E may edit entries', 'Space on / off'], { menu: true, hotkeys: { e: edit, E: edit, a: () => { add(); return true; }, A: () => { add(); return true; }, p: () => { reset(); return true; }, P: () => { reset(); return true; }, r: role, R: role, ' ': toggle, Space: toggle } });
   }
 
   async function denoms(done, reopen) {
@@ -125,15 +126,17 @@
       if (!await A.confirmDialog({ title: 'Replace ALL current data?', text: 'Everything now in Cash Desk is replaced by this backup. A safety copy of the current data is made first. You will sign in again.', yesLabel: 'Restore' })) return;
       await act(async () => { const r = await api.backup.restore(f.name, password); A.toast(r.safetyCopy ? `Restored. Safety copy: ${r.safetyCopy}` : 'Restored'); });
     }
+    const fromFile = () => { A.restoreFromFile(true); return true; };
     const rows = st.files.map((f) => h('tr', { tabindex: '0', data: { menuItem: '1', name: f.name } }, h('td', {}, when(f.at)), h('td', {}, f.safety ? 'Before a restore' : 'Backup'), h('td', { class: 'n' }, kb(f.size)), h('td', {}, f.name)));
     done(h('div', { class: 'dash' },
       h('div', { class: 'block panel' },
         h('p', {}, st.configured ? `Backups are on. Last: ${when(st.lastAt)}. Newest ${st.keep} are kept.` : 'Backups are OFF. Set a backup password (P).'),
         h('p', { class: 'lede' }, `Folder: ${st.folder}${st.customFolder ? '' : ' (default)'}`),
-        h('p', { class: 'lede' }, 'A backup is made when you close a day and when you quit. It is sealed with the backup password, so it can be restored on any PC with that password.')),
+        h('p', { class: 'lede' }, 'A backup is made when you close a day and when you quit. It is sealed with the backup password, so it can be restored on any PC with that password.'),
+        h('div', { class: 'row card' }, h('button', { type: 'button', on: { click: fromFile } }, 'Restore from a backup file (O)'))),
       h('div', { class: 'block panel' }, rows.length ? h('table', {}, h('thead', {}, h('tr', {}, h('th', {}, 'When'), h('th', {}, 'Kind'), h('th', { class: 'n' }, 'Size'), h('th', {}, 'File'))), h('tbody', {}, rows)) : h('p', { class: 'lede' }, 'No backups yet.'))),
-    ['P backup password', 'B back up now', 'F folder', '↑ ↓ choose, Enter restore'], { menu: true,
-      hotkeys: { p: () => { setPass(); return true; }, P: () => { setPass(); return true; }, b: () => { now(); return true; }, B: () => { now(); return true; }, f: () => { folder(); return true; }, F: () => { folder(); return true; }, Enter: () => { if (!selected()) return false; restore(); return true; } } });
+    ['P backup password', 'B back up now', 'F folder', 'O restore from a file', '↑ ↓ choose, Enter restore'], { menu: true,
+      hotkeys: { o: fromFile, O: fromFile, p: () => { setPass(); return true; }, P: () => { setPass(); return true; }, b: () => { now(); return true; }, B: () => { now(); return true; }, f: () => { folder(); return true; }, F: () => { folder(); return true; }, Enter: () => { if (!selected()) return false; restore(); return true; } } });
   }
 
   window.CashDeskScreens.settings = { open };

@@ -55,7 +55,7 @@ function install(LedgerService) {
   // ---- users ----
   P.usersList = function () {
     this.auth.requireRole('admin');
-    return { users: this.repo.usersAll().map((u) => ({ id: u.id, username: u.username, role: u.role, active: Boolean(u.active) })) };
+    return { users: this.repo.usersAll().map((u) => ({ id: u.id, username: u.username, role: u.role, active: Boolean(u.active), canEdit: u.role === 'admin' || Boolean(u.can_edit) })) };
   };
 
   // New user: { username, password, role }. Existing: { id, role?, active?, password? } (an admin sets a new password for them).
@@ -79,16 +79,17 @@ function install(LedgerService) {
     if (!user) throw new UserError('That user does not exist.');
     const newRole = role || user.role;
     const newActive = input.active === undefined ? Boolean(user.active) : Boolean(input.active);
+    const newCanEdit = input.canEdit === undefined ? Boolean(user.can_edit) : Boolean(input.canEdit);
     if (user.id === s.userId && (newRole !== user.role || !newActive)) throw new UserError('You cannot change your own role or turn yourself off.');
     const losesAdmin = user.role === 'admin' && user.active && (newRole !== 'admin' || !newActive);
     if (losesAdmin && this.repo.activeAdmins() <= 1) throw new UserError('There must be at least one active admin.');
     let passHash = null;
     if (input.password !== undefined) { hasher.validatePassword(input.password); passHash = hasher.hash(input.password); }
     return this.store.transaction(() => {
-      this.repo.userUpdate(user.id, { role: newRole, active: newActive });
+      this.repo.userUpdate(user.id, { role: newRole, active: newActive, canEdit: newCanEdit });
       if (passHash) this.repo.setPasswordHash(user.id, passHash);
       this.repo.audit({ userId: s.userId, action: passHash ? 'user_password_reset' : 'user_update', table: 'users', rowId: user.id,
-        before: { role: user.role, active: Boolean(user.active) }, after: { role: newRole, active: newActive } });
+        before: { role: user.role, active: Boolean(user.active), canEdit: Boolean(user.can_edit) }, after: { role: newRole, active: newActive, canEdit: newCanEdit } });
       return { id: user.id };
     });
   };

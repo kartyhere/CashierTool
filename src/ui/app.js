@@ -61,7 +61,7 @@
   function show(node) { root.replaceChildren(node); }
 
   // ---- Setup and sign in -------------------------------------------------------------------------------------
-  function entryScreen({ title, hint, fields, submitLabel, onSubmit }) {
+  function entryScreen({ title, hint, fields, submitLabel, onSubmit, extra = null }) {
     const error = h('div', { class: 'error', role: 'alert' });
     const inputs = fields.map((f) => h('input', { type: f.type, id: f.id, autocomplete: f.type === 'password' ? 'off' : 'username', spellcheck: 'false', data: { field: '1' } }));
     const submit = h('button', { class: 'primary', type: 'button' }, submitLabel);
@@ -85,9 +85,10 @@
         hint ? h('p', { class: 'hint' }, hint) : null,
         fields.map((f, i) => h('label', { class: 'field' }, h('span', {}, f.label), inputs[i])),
         error,
-        h('div', { class: 'row' }, submit)));
+        h('div', { class: 'row' }, submit),
+        extra ? h('div', { class: 'row', style: 'margin-top:10px' }, h('button', { type: 'button', on: { click: extra.onClick } }, `${extra.label} (${extra.key})`)) : null));
     show(node);
-    Keys.setScreen({ root: node, onSubmit: go });
+    Keys.setScreen({ root: node, onSubmit: go, hotkeys: extra ? { [extra.key]: () => { extra.onClick(); return true; } } : undefined });
     Keys.focusFirst(node);
   }
 
@@ -101,6 +102,7 @@
         { id: 'p2', type: 'password', label: 'Repeat password' },
       ],
       submitLabel: 'Create and sign in',
+      extra: { label: 'New PC? Restore from a backup file', key: 'F9', onClick: () => restoreFromFile(false) },
       onSubmit: async ([u, p, p2]) => {
         if (p !== p2) throw new Error('The two passwords do not match.');
         const { user } = await api.auth.setup(u, p);
@@ -124,6 +126,18 @@
         } catch (e) { throw withWait(e); }
       },
     });
+  }
+
+  // Restore everything from a backup file (a new PC, a USB stick). Needs only the backup password.
+  // On a fresh install (setup screen) there is nothing to replace, so no warning is shown.
+  async function restoreFromFile(warn) {
+    let pick;
+    try { pick = await api.restore.chooseFile(); } catch (e) { toast(e.message); return; }
+    if (pick.cancelled) return;
+    if (warn && !await confirmDialog({ title: 'Replace ALL current data?', text: `Everything now in Cash Desk is replaced by ${pick.name}. A safety copy of the current data is made first. You will sign in again.`, yesLabel: 'Continue' })) return;
+    const password = await promptDialog({ title: `Restore ${pick.name}`, label: 'Backup password', secret: true });
+    if (password === null) return;
+    try { await api.restore.run(password); toast('Restored. Opening again…'); } catch (e) { toast(e.message); }
   }
 
   const withWait = (e) => e; // the main process already words the wait ("Locked for 1 minute")
@@ -241,6 +255,10 @@
         side.append(h('div', { class: 'banner bad' }, h('span', {}, `${dash.earlierOpen} is not closed yet. Close it before new entries.`),
           h('button', { type: 'button', on: { click: () => open('dayclose') } }, 'Day close (C)')));
       }
+      if (dash.unsplit) {
+        side.append(h('div', { class: 'banner' }, h('span', {}, `${dash.unsplit} voucher${dash.unsplit === 1 ? ' is' : 's are'} not split into expenses yet.`),
+          h('button', { type: 'button', on: { click: () => open('entries') } }, 'Entries (E)')));
+      }
       if (dash.depositDue) {
         side.append(h('div', { class: 'banner' }, h('span', {}, `Cash is ${F.inr(dash.drawer.total)}. A bank deposit of about ${F.inr(dash.depositDue)} is due.`),
           h('button', { type: 'button', on: { click: () => open('deposit') } }, 'Deposit (D)')));
@@ -347,7 +365,7 @@
   });
 
   window.CashDeskApp = {
-    api, h, Keys, F, show, toast, gateway, confirmDialog, promptDialog, themeButton,
+    api, h, Keys, F, show, toast, gateway, confirmDialog, promptDialog, themeButton, restoreFromFile,
     session: () => session,
   };
 

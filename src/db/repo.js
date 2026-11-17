@@ -14,7 +14,7 @@ function createRepo(store) {
       return store.get('SELECT id, username, pass_hash, role, active FROM users WHERE username = ?', [username]);
     },
     getUser(id) {
-      return store.get('SELECT id, username, pass_hash, role, active FROM users WHERE id = ?', [id]);
+      return store.get('SELECT id, username, pass_hash, role, active, can_edit FROM users WHERE id = ?', [id]);
     },
     createUser({ username, passHash, role }) {
       return store.run(
@@ -22,8 +22,8 @@ function createRepo(store) {
         [username, passHash, role, nowIso()],
       ).lastId;
     },
-    usersAll() { return store.all('SELECT id, username, role, active, created_at FROM users ORDER BY username COLLATE NOCASE'); },
-    userUpdate(id, { role, active }) { store.run('UPDATE users SET role = ?, active = ? WHERE id = ?', [role, active ? 1 : 0, id]); },
+    usersAll() { return store.all('SELECT id, username, role, active, can_edit, created_at FROM users ORDER BY username COLLATE NOCASE'); },
+    userUpdate(id, { role, active, canEdit }) { store.run('UPDATE users SET role = ?, active = ?, can_edit = ? WHERE id = ?', [role, active ? 1 : 0, canEdit ? 1 : 0, id]); },
     activeAdmins() { return Number(store.get("SELECT COUNT(*) AS n FROM users WHERE role = 'admin' AND active = 1").n); },
     denominationRows() { return store.all('SELECT id, value, kind, sort, hidden FROM denominations ORDER BY sort'); },
     setDenominationHidden(id, hidden) { store.run('UPDATE denominations SET hidden = ? WHERE id = ?', [hidden ? 1 : 0, id]); },
@@ -49,11 +49,11 @@ function createRepo(store) {
     },
     insertEntry(e) {
       return store.run(`INSERT INTO entries (day, created_at, user_id, type, source, person_id, branch_id, department_id, bank_account_id,
-        party_name, voucher_amount, cash_delta, balance_delta, bank_delta, reference, remark, flag)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        party_name, voucher_amount, cash_delta, balance_delta, bank_delta, reference, remark, flag, parts_json)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [e.day, nowIso(), e.userId, e.type, e.source ?? null, e.personId ?? null, e.branchId ?? null, e.departmentId ?? null,
         e.bankAccountId ?? null, e.partyName ?? null, e.voucherAmount ?? null, e.cashDelta, e.balanceDelta ?? 0, e.bankDelta ?? 0,
-        e.reference ?? null, e.remark ?? null, e.flag ?? null]).lastId;
+        e.reference ?? null, e.remark ?? null, e.flag ?? null, e.partsJson ?? null]).lastId;
     },
     insertPieces(entryId, pieces) {
       for (const [id, qty] of Object.entries(pieces)) {
@@ -128,12 +128,20 @@ function createRepo(store) {
       return store.all('SELECT * FROM entries WHERE person_id = ? AND deleted = 0 ORDER BY id DESC LIMIT ?', [id, limit]);
     },
     hiddenDenoms() { return store.all('SELECT id FROM denominations WHERE hidden = 1').map((r) => r.id); },
-    insertLine(entryId, { expenseTypeId, amount, note, sort }) {
-      store.run('INSERT INTO voucher_lines (entry_id, expense_type_id, amount, note, sort) VALUES (?, ?, ?, ?, ?)', [entryId, expenseTypeId, amount, note ?? null, sort]);
+    insertLine(entryId, { expenseTypeId, amount, note, sort, voucherNo }) {
+      store.run('INSERT INTO voucher_lines (entry_id, expense_type_id, amount, note, sort, voucher_no) VALUES (?, ?, ?, ?, ?, ?)', [entryId, expenseTypeId, amount, note ?? null, sort, voucherNo ?? null]);
     },
+    deleteLines(entryId) { store.run('DELETE FROM voucher_lines WHERE entry_id = ?', [entryId]); },
+    setRemark(entryId, remark) { store.run('UPDATE entries SET remark = ? WHERE id = ?', [remark ?? null, entryId]); },
     linesOf(entryId) {
-      return store.all(`SELECT l.amount, l.note, t.name AS type FROM voucher_lines l JOIN expense_types t ON t.id = l.expense_type_id
+      return store.all(`SELECT l.amount, l.note, l.voucher_no AS voucherNo, l.expense_type_id AS expenseTypeId, t.name AS type FROM voucher_lines l JOIN expense_types t ON t.id = l.expense_type_id
         WHERE l.entry_id = ? ORDER BY l.sort`, [entryId]);
+    },
+    // Vouchers saved without an expense split (to be split later), on days that are not closed yet.
+    unsplitVouchers() {
+      return store.all(`SELECT e.id, e.day FROM entries e WHERE e.type = 'voucher' AND e.deleted = 0
+        AND NOT EXISTS (SELECT 1 FROM voucher_lines l WHERE l.entry_id = e.id)
+        AND NOT EXISTS (SELECT 1 FROM day_closes c WHERE c.day = e.day AND c.status = 'closed') ORDER BY e.id`);
     },
 
     // ---- lists (departments, branches, expense types, bank accounts) ----

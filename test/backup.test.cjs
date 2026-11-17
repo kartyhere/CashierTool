@@ -110,3 +110,30 @@ test('custom folder is checked; a folder that cannot be written is refused', asy
   a.backups.setPassword('correct horse');
   assert.ok(fs.existsSync(path.join(dir, a.backups.create().name)));
 });
+
+test('restore from a file on a new PC: no users, no backup key, only the backup password', async () => {
+  const a = await ready();
+  a.backups.setPassword('correct horse');
+  a.ledger.savePerson({ name: 'Meena', department: 'Stores' });
+  const b = a.backups.create('manual');
+  const outside = path.join(tmp(), 'moved-from-old-pc.cdbak');          // a file copied from another PC / a USB stick
+  fs.copyFileSync(b.path, outside);
+
+  const fresh = await openApp();                                         // a new PC: empty data, no backup key
+  const svc = new BackupService({ store: fresh.store, repo: fresh.repo, safeStorage: fakeSafeStorage, userDataDir: fresh.dir, defaultDir: tmp(), now: () => new Date(2026, 10, 17, 11, 0, 0) });
+  assert.equal(fresh.repo.countUsers(), 0);
+  assert.throws(() => svc.restoreFile({ password: 'correct horse' }), /Choose a backup file first/);
+  assert.throws(() => svc.pick('relative/path.cdbak'), /Choose a backup file/);
+  const junk = path.join(tmp(), 'junk.cdbak'); fs.writeFileSync(junk, 'not a backup at all, just some text bytes here');
+  assert.throws(() => svc.pick(junk), (e) => e.code === 'BAD_BACKUP');
+  assert.equal(svc.pick(outside).name, 'moved-from-old-pc.cdbak');
+  assert.throws(() => svc.restoreFile({ password: 'wrong password' }), (e) => e.code === 'BAD_PASSWORD');
+  assert.equal(fresh.repo.countUsers(), 0);                              // a wrong password changes nothing
+  const r = svc.restoreFile({ password: 'correct horse' });
+  assert.equal(r.restored, 'moved-from-old-pc.cdbak');
+  assert.equal(fresh.repo.countUsers(), 1);
+  fresh.auth.signIn({ username: 'karthik', password: '1234' });         // the old login works on the new PC
+  assert.deepEqual(people(fresh), ['Meena']);
+  assert.equal(svc.configured(), true);                                  // this PC can now make backups with the same password
+  assert.ok(svc.create('manual').name.endsWith('.cdbak'));
+});

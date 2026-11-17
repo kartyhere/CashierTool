@@ -136,6 +136,10 @@ tr[tabindex]:focus .minus, tr[tabindex]:hover .minus { color: var(--ink); }
 .step[hidden] { display: none; }
 .amount-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .more-vouchers { display: grid; grid-template-columns: calc(50% - 6px); }
+.total-line { font: 500 13px 'Geist Mono', monospace; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin: 4px 0 6px; }
+.total-line b { font: 560 28px 'Archivo', sans-serif; letter-spacing: -0.02em; color: var(--text); text-transform: none; }
+.split-section { margin-bottom: 18px; }
+.split-section[hidden] { display: none; }
 .card-opt .tag { font: 500 11px 'Geist Mono', monospace; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 4px; }
 .pick { border: 1px solid var(--line-strong); background: var(--sunken); max-height: 220px; overflow: auto; }
 .pick div { padding: 8px 12px; display: flex; justify-content: space-between; gap: 12px; border-bottom: 1px solid var(--line); }

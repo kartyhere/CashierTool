@@ -24,7 +24,7 @@ function describe(error, log) {
   return { ok: false, code: 'ERROR', message: 'Something went wrong. Nothing was changed.' };
 }
 
-function registerIpc({ ipcMain, guard, auth, ledger, repo, store, appInfo, onThemeChange = () => {}, chooseSavePath = async () => null, chooseFolder = async () => null, backups = null, afterRestore = () => {}, log = (e) => console.error(e) }) {
+function registerIpc({ ipcMain, guard, auth, ledger, repo, store, appInfo, onThemeChange = () => {}, chooseSavePath = async () => null, chooseFolder = async () => null, chooseBackupFile = async () => null, backups = null, afterRestore = () => {}, log = (e) => console.error(e) }) {
   function handle(channel, access, fn) {
     ipcMain.handle(channel, async (event, payload) => {
       try {
@@ -63,6 +63,7 @@ function registerIpc({ ipcMain, guard, auth, ledger, repo, store, appInfo, onThe
   handle('cashin.save', 'unlocked', (p) => ledger.saveCashIn(p));
   handle('entries.list', 'unlocked', (p) => ledger.entries(p));
   handle('entry.delete', 'unlocked', (p) => ledger.deleteEntry(p));
+  handle('entry.editVoucher', 'unlocked', (p) => ledger.editVoucherSplit(p));
   handle('people.search', 'unlocked', (p) => ledger.searchPeople(p));
   handle('people.save', 'unlocked', (p) => ledger.savePerson(p));
   handle('people.history', 'unlocked', (p) => ledger.personHistory(p));
@@ -119,6 +120,21 @@ function registerIpc({ ipcMain, guard, auth, ledger, repo, store, appInfo, onThe
     auth.requireRole('admin');
     const r = needBackups().restore({ name: p.name, password: p.password });
     auth.signOut();
+    afterRestore();
+    return r;
+  });
+  // Restore from a backup file. Allowed for a signed-in admin, or on a fresh install with no users yet (a new PC).
+  const restoreAllowed = () => { if (repo.countUsers() > 0) auth.requireRole('admin'); };
+  handle('restore.chooseFile', 'open', async () => {
+    restoreAllowed();
+    const file = await chooseBackupFile({ folder: needBackups().folder() });
+    if (!file) return { cancelled: true };
+    return needBackups().pick(file);
+  });
+  handle('restore.run', 'open', (p) => {
+    restoreAllowed();
+    const r = needBackups().restoreFile({ password: p.password });
+    if (auth.session) auth.signOut();
     afterRestore();
     return r;
   });

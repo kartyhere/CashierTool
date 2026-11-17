@@ -116,6 +116,33 @@ class BackupService {
     this.store.replace(plain);
     return { restored: name, safetyCopy: safety };
   }
+
+  // Restore from a backup file anywhere on the PC (a new PC, a USB stick). Works with the backup password alone.
+  // The file is chosen first (pick), then restored with the password. Afterwards this PC can make backups with that same password.
+  pick(file) {
+    if (typeof file !== 'string' || !path.isAbsolute(file) || !fs.existsSync(file)) throw new UserError('Choose a backup file.');
+    const bytes = fs.readFileSync(file);
+    if (bytes.length < HEAD || !bytes.subarray(0, 8).equals(MAGIC)) throw new UserError('That file is not a Cash Desk backup.', 'BAD_BACKUP');
+    this.pending = file;
+    return { name: path.basename(file) };
+  }
+
+  restoreFile({ password }) {
+    if (!this.pending) throw new UserError('Choose a backup file first.');
+    const file = this.pending;
+    const bytes = fs.readFileSync(file);
+    const plain = openBackup(bytes, password);
+    let safety = null;
+    if (this.configured()) safety = this.create('before restore', 'CashDesk-before-restore').name;
+    this.pending = null;
+    this.store.replace(plain);
+    // Keep making backups on this PC with the same password: the key comes from the password and the file's salt.
+    const salt = bytes.subarray(8, 24);
+    writeAtomic(this.keyFile, this.safeStorage.encryptString(deriveKey(password, salt).toString('base64')));
+    this.store.transaction(() => this.repo.setSetting('backup_salt', Buffer.from(salt).toString('base64')));
+    this.lastWrites = this.store.writes;
+    return { restored: path.basename(file), safetyCopy: safety };
+  }
 }
 
 module.exports = { BackupService, sealBackup, openBackup, KEEP };

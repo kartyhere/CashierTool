@@ -114,6 +114,11 @@ async function boot() {
       const r = await dialog.showOpenDialog(mainWindow, { title: 'Backup folder', defaultPath: current, properties: ['openDirectory', 'createDirectory'] });
       return r.canceled || !r.filePaths.length ? null : r.filePaths[0];
     },
+    chooseBackupFile: async ({ folder }) => {
+      if (!app.isPackaged && process.env.CASHDESK_RESTORE_FILE) return process.env.CASHDESK_RESTORE_FILE; // tests
+      const r = await dialog.showOpenDialog(mainWindow, { title: 'Choose a Cash Desk backup file', defaultPath: folder, properties: ['openFile'], filters: [{ name: 'Cash Desk backup', extensions: ['cdbak'] }, { name: 'All files', extensions: ['*'] }] });
+      return r.canceled || !r.filePaths.length ? null : r.filePaths[0];
+    },
     afterRestore: () => setTimeout(() => { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.reload(); }, 400),
     chooseSavePath: async ({ defaultName, format, folder }) => {
       // Tests (unpackaged only) save into a folder instead of opening the Windows save box.

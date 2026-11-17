@@ -102,6 +102,7 @@ class LedgerService {
       earlierOpen: this.repo.daysWithEntries().find((d) => d < day && !this.repo.dayIsClosed(d)) || null,
       hasOpening: this.repo.hasOpening(),
       clockBehind: Boolean(last && day < last),
+      unsplit: this.repo.unsplitVouchers().length,
       dayClosed: this.repo.dayIsClosed(day),
       drawer,
       figures: figures(this.repo.entryDeltas(), day),
@@ -119,9 +120,9 @@ class LedgerService {
       person: e.person_name, flag: e.flag, voucherAmount: e.voucher_amount, balanceDelta: e.balance_delta, lines: this.repo.linesOf(e.id),
       partyName: e.party_name, branch: e.branch_name, department: e.department_name, bank: e.bank_name,
       amount: Math.abs(e.cash_delta), cashDelta: e.cash_delta, bankDelta: e.bank_delta, remark: e.remark, reference: e.reference,
-      deleted: Boolean(e.deleted), pieces: this.repo.piecesOf(e.id),
+      deleted: Boolean(e.deleted), pieces: this.repo.piecesOf(e.id), parts: e.parts_json ? JSON.parse(e.parts_json) : null,
     })).map((e) => (e.type === 'exchange' ? { ...e, amount: Object.entries(e.pieces).reduce((t, [d, q]) => t + (q < 0 ? -q * BY_ID[d].value : 0), 0) } : e));
-    return { day: d, entries: rows, figures: figures(this.repo.entryDeltas(), d) };
+    return { day: d, entries: rows, figures: figures(this.repo.entryDeltas(), d), closed: this.repo.dayIsClosed(d), mayEdit: this._mayEdit(this.auth.requireSession()) };
   }
 
   // ---- opening count ----

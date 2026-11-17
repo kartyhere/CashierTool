@@ -4,8 +4,8 @@
   const A = window.CashDeskApp;
   const { h, api, F, Keys } = A;
   const { page, piecesText, balanceText, addPerson } = window.CashDeskShared;
+  const Splits = window.CashDeskSplits;
   const { DENOMS } = window.CashDeskDenoms;
-  const NEW = '__new';
   const STAGES = ['person', 'amount', 'payout', 'breakup', 'lines', 'remark'];
   const sum = (m) => DENOMS.reduce((t, d) => t + d.value * (m[d.id] || 0), 0);
   const digits = (input, max) => input.addEventListener('input', () => { input.value = F.digitsOnly(input.value).slice(0, max); });
@@ -14,7 +14,7 @@
     let types;
     try { types = (await api.lists.get()).expenseTypes.filter((t) => t.active); } catch (e) { A.toast(e.message); return; }
 
-    const st = { person: null, amount: 0, parts: [], brought: 0, preview: null, sel: 0, alts: [], altIdx: 0, results: [], pick: 0, stage: 'person' };
+    const st = { person: null, amount: 0, parts: [], splitLater: false, brought: 0, preview: null, sel: 0, alts: [], altIdx: 0, results: [], pick: 0, stage: 'person' };
 
     // ---- step 1: person ----
     const personIn = h('input', { type: 'text', autocomplete: 'off', placeholder: 'Type a name', 'aria-label': 'Person' });
@@ -27,16 +27,16 @@
     digits(amountIn, 8);
     const broughtIn = h('input', { type: 'text', inputmode: 'numeric', autocomplete: 'off', 'aria-label': 'Brought by receiver' });
     digits(broughtIn, 8);
-    // More vouchers from the same person: a new box appears under the last one each time it is filled and Enter is pressed.
+    // Vouchers from the same person, no fixed limit: a new box appears under the last one each time one is filled and Enter is pressed.
+    // Enter on an empty box (or 0) ends the list. The total shows as you go.
     const amts = [amountIn];
     const moreBox = h('div', { class: 'more-vouchers' });
-    const totalNote = h('p', { class: 'lede', hidden: true });
-    const MAX_VOUCHERS = 10;
+    const totalNote = h('div', { class: 'total-line', hidden: true });
     const partsNow = () => amts.map((i) => Number(i.value || 0)).filter((n) => n > 0);
     function updateTotal() {
       const p = partsNow();
-      totalNote.hidden = p.length < 2;
-      totalNote.textContent = `${p.length} vouchers · ${p.join(' + ')} = ${F.inr(p.reduce((t, n) => t + n, 0))}`;
+      totalNote.hidden = p.length === 0;
+      totalNote.replaceChildren('Total ', h('b', {}, F.inr(p.reduce((t, n) => t + n, 0))), p.length > 1 ? `  ·  ${p.length} vouchers: ${p.join(' + ')}` : '');
     }
     amountIn.addEventListener('input', updateTotal);
     function addVoucherRow() {
@@ -49,7 +49,7 @@
     function clearVoucherRows() { amts.length = 1; moreBox.replaceChildren(); totalNote.hidden = true; }
     const s2 = h('div', { class: 'step', hidden: true },
       h('div', { class: 'amount-row' },
-        h('label', { class: 'field' }, h('span', {}, 'Voucher amount (₹)'), amountIn),
+        h('label', { class: 'field' }, h('span', {}, 'Voucher 1 (₹)'), amountIn),
         h('label', { class: 'field' }, h('span', {}, 'Brought by receiver (₹, Tab)'), broughtIn)),
       moreBox, totalNote);
 
@@ -70,15 +70,17 @@
     });
     const s4 = h('div', { class: 'step', hidden: true },
       h('div', { class: 'field' }, h('span', {}, 'Notes and coins (↑ ↓ move, A other breakup, Enter accept)')),
-      h('table', { class: 'grid' }, h('thead', {}, h('tr', {}, h('th', {}, 'Note / coin'), h('th', { class: 'n' }, 'In drawer'), h('th', { class: 'n' }, 'Give'), h('th', { class: 'n' }, 'Back'))), h('tbody', {}, gridRows)),
+      h('p', { class: 'lede', style: 'margin-bottom:8px' }, 'Give = notes and coins you hand over. Back = notes and coins the person hands back to you (small change they bring).'),
+      h('table', { class: 'grid' }, h('thead', {}, h('tr', {}, h('th', {}, 'Note / coin'), h('th', { class: 'n' }, 'In drawer'), h('th', { class: 'n' }, 'Give'), h('th', { class: 'n' }, 'Back (from person)'))), h('tbody', {}, gridRows)),
       live);
 
-    // ---- step 5: expense lines ----
-    const linesBody = h('tbody', {});
-    const linesFoot = h('div', { class: 'live' });
-    const s5 = h('div', { class: 'step', hidden: true },
-      h('div', { class: 'field' }, h('span', {}, 'Expense lines (Enter on an empty type finishes)')),
-      h('table', { class: 'lines-grid' }, h('thead', {}, h('tr', {}, h('th', {}, 'Type'), h('th', { class: 'n' }, 'Amount ₹'), h('th', {}, 'Note'))), linesBody), linesFoot);
+    // ---- step 5: expense split, one section per voucher ----
+    const splits = Splits.create({
+      types, parts: [1],
+      onFinish: () => { show('remark'); remarkIn.focus(); },
+      onBack: () => { show('breakup'); giveIn[DENOMS[0].id].focus(); },
+    });
+    const s5 = h('div', { class: 'step', hidden: true }, splits.node);
 
     // ---- step 6: remark ----
     const remarkIn = h('input', { type: 'text', autocomplete: 'off', 'aria-label': 'Remark' });
@@ -150,11 +152,10 @@
       st.parts = parts; st.amount = parts.reduce((t, n) => t + n, 0); st.brought = Number(broughtIn.value || 0);
       await loadPreview();
     };
-    // Enter on a box: the next box; on the last box, a filled one adds another voucher and an empty one carries on.
+    // Enter on a box: the next box; on the last box, a filled one adds another voucher and an empty one (or 0) carries on.
     const enterOn = async (i) => {
       if (i < amts.length - 1) { amts[i + 1].focus(); amts[i + 1].select(); return; }
-      if (amts[i].value === '') { if (i === 0) { A.toast('Enter the voucher amount'); return; } await goPreview(); return; }
-      if (amts.length >= MAX_VOUCHERS) { await goPreview(); return; }
+      if (Number(amts[i].value || 0) === 0) { if (i === 0) { A.toast('Enter the voucher amount'); return; } await goPreview(); return; }
       addVoucherRow();
     };
     amountIn.addEventListener('keydown', async (e) => {
@@ -243,76 +244,16 @@
         if (sum(give) - sum(back) !== c.payout) { A.toast(`Notes given minus received must be ${F.inr(c.payout)}`); return; }
         const short = DENOMS.find((d) => give[d.id] - back[d.id] > st.preview.drawer.rows.find((r) => r.id === d.id).qty);
         if (short) { A.toast(`The drawer has fewer ${short.label} than you are giving`); return; }
-        if (!linesBody.children.length) addLine();
-        show('lines'); linesBody.querySelector('select').focus();
+        st.splitLater = false;
+        splits.reset(st.parts, []);
+        show('lines'); splits.focus();
       }
     });
-
-    // ---------- step 5 ----------
-    const typeOptions = () => [h('option', { value: '' }, ''), ...types.map((t) => h('option', { value: String(t.id) }, t.name)), h('option', { value: NEW }, '+ New…')];
-    const lineTotal = () => [...linesBody.querySelectorAll('input.amt')].reduce((t, i) => t + Number(i.value || 0), 0);
-    const remaining = () => st.amount - lineTotal();
-    function updateLinesFoot() {
-      const left = remaining();
-      linesFoot.textContent = `Lines ${F.inr(lineTotal())} of ${F.inr(st.amount)}${left ? ` · ${left > 0 ? F.inr(left) + ' left to split' : F.inr(-left) + ' too much'}` : ' · fully split'}`;
-      linesFoot.classList.toggle('ok', left === 0);
-    }
-    function addLine() {
-      const sel = h('select', { 'aria-label': 'Expense type' }, typeOptions());
-      const amt = h('input', { type: 'text', inputmode: 'numeric', autocomplete: 'off', class: 'amt', 'aria-label': 'Line amount' });
-      const note = h('input', { type: 'text', autocomplete: 'off', class: 'note', 'aria-label': 'Line note' });
-      digits(amt, 8);
-      amt.addEventListener('input', updateLinesFoot);
-      const row = h('tr', {}, h('td', {}, sel), h('td', { class: 'n' }, amt), h('td', {}, note));
-      sel.addEventListener('keydown', async (e) => {
-        if (e.key === 'Backspace') {
-          e.preventDefault();
-          const rows = [...linesBody.children]; const i = rows.indexOf(row);
-          if (i === 0) { show('breakup'); giveIn[DENOMS[0].id].focus(); return; }
-          row.remove(); updateLinesFoot(); rows[i - 1].querySelector('input.note').focus(); return;
-        }
-        if (e.key !== 'Enter') return;
-        e.preventDefault();
-        if (sel.value === NEW) {
-          const name = await A.promptDialog({ title: 'New expense type', label: 'Name' });
-          if (name === null) { sel.focus(); return; }
-          try {
-            const { id } = await api.lists.save({ list: 'expenseTypes', name });
-            types.push({ id, name: name.trim(), active: true });
-            linesBody.querySelectorAll('select').forEach((s) => { const keep = s.value; s.replaceChildren(...typeOptions()); s.value = keep; });
-            sel.value = String(id);
-          } catch (err) { A.toast(err.message); sel.focus(); return; }
-        }
-        if (sel.value === '') {
-          const rows = [...linesBody.children];
-          if (rows.indexOf(row) === 0) { A.toast('Choose an expense type'); return; }
-          if (remaining() !== 0) { A.toast(`Split the remaining ${F.inr(remaining())} first`); return; }
-          row.remove(); updateLinesFoot(); show('remark'); remarkIn.focus(); return;
-        }
-        if (!amt.value && remaining() > 0) amt.value = String(remaining());
-        updateLinesFoot(); amt.focus(); amt.select();
-      });
-      amt.addEventListener('keydown', (e) => {
-        if (e.key === 'Backspace' && amt.value === '') { e.preventDefault(); sel.focus(); }
-        else if (e.key === 'Enter') { e.preventDefault(); if (Number(amt.value) < 1) { A.toast('Enter the line amount'); return; } if (Number(amt.value) > st.amount) { A.toast('That is more than the voucher'); return; } note.focus(); }
-      });
-      note.addEventListener('keydown', (e) => {
-        if (e.key === 'Backspace' && note.value === '') { e.preventDefault(); amt.focus(); amt.select(); }
-        else if (e.key === 'Enter') {
-          e.preventDefault();
-          if (remaining() > 0) { addLine(); linesBody.lastElementChild.querySelector('select').focus(); }
-          else if (remaining() < 0) A.toast(`The lines are ${F.inr(-remaining())} more than the voucher`);
-          else { show('remark'); remarkIn.focus(); }
-        }
-      });
-      linesBody.append(row);
-      updateLinesFoot();
-    }
 
     // ---------- step 6 and saving ----------
     remarkIn.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') { e.preventDefault(); submit(); }
-      else if (e.key === 'Backspace' && remarkIn.value === '') { e.preventDefault(); show('lines'); const rows = linesBody.children; rows[rows.length - 1].querySelector('input.note').focus(); }
+      else if (e.key === 'Backspace' && remarkIn.value === '') { e.preventDefault(); show('lines'); if (st.splitLater) { st.splitLater = false; splits.focus(); } else splits.focusLast(); }
     });
     saveBtn.addEventListener('click', submit);
 
@@ -323,16 +264,14 @@
       try {
         const c = st.preview.candidates[st.sel];
         const give = read(giveIn), back = read(backIn);
-        const lines = [...linesBody.children].map((row) => ({
-          expenseTypeId: Number(row.querySelector('select').value), amount: Number(row.querySelector('input.amt').value), note: row.querySelector('input.note').value,
-        })).filter((l) => l.expenseTypeId && l.amount);
+        const lines = st.splitLater ? [] : splits.getLines();
         const newBalance = Number(st.person.balance) + st.amount - c.payout;
         const summaryLines = [['Person', st.person.name], [st.parts.length > 1 ? `Vouchers (${st.parts.length})` : 'Voucher', st.parts.length > 1 ? `${st.parts.map((n) => F.inr(n)).join(' + ')} = ${F.inr(st.amount)}` : F.inr(st.amount)], ['Pay', F.inr(c.payout)], ...(c.brought ? [['Brought by receiver', F.inr(c.brought)]] : []), ['Balance after', balanceText(newBalance)],
           ['Give', piecesText(give) || 'nothing'], ...(sum(back) ? [['Receive back', piecesText(back)]] : []),
-          ...lines.map((l) => [types.find((t) => t.id === l.expenseTypeId).name, F.inr(l.amount)])];
+          ...(st.splitLater ? [['Expense split', 'later (not split yet)']] : lines.map((l) => [(st.parts.length > 1 ? `V${l.voucherNo} · ` : '') + types.find((t) => t.id === l.expenseTypeId).name, F.inr(l.amount)]))];
         if (remarkIn.value.trim()) summaryLines.push(['Remark', remarkIn.value.trim()]);
         if (!await A.confirmDialog({ title: 'Save this voucher?', lines: summaryLines, yesLabel: 'Save' })) { remarkIn.focus(); return; }
-        const payload = { personId: st.person.id, amount: st.amount, parts: st.parts, give, back, lines, remark: remarkIn.value };
+        const payload = { personId: st.person.id, amount: st.amount, parts: st.parts, give, back, lines, splitLater: st.splitLater, remark: remarkIn.value };
         let result;
         try { result = await api.voucher.save(payload); } catch (e) {
           if (e.code !== 'CONFIRM_LIMIT') throw e;
@@ -345,9 +284,9 @@
     }
 
     function reset() {
-      st.person = null; st.preview = null; st.amount = 0; st.parts = []; st.brought = 0; clearVoucherRows();
+      st.person = null; st.preview = null; st.amount = 0; st.parts = []; st.splitLater = false; st.brought = 0; clearVoucherRows();
       personIn.value = ''; amountIn.value = ''; broughtIn.value = ''; remarkIn.value = ''; chip.hidden = true; pickList.hidden = true; st.results = [];
-      linesBody.replaceChildren(); error.textContent = '';
+      st.splitLater = false; error.textContent = '';
       refreshSummary();
       show('person'); personIn.focus();
       runSearch();
@@ -356,7 +295,7 @@
     // ---------- screen ----------
     const node = page({
       title: 'Voucher',
-      hints: ['Enter next step', 'Enter on an empty voucher box: continue', 'Backspace on an empty box: back', 'Alt+C new person', 'Esc leave'],
+      hints: ['Enter next step', 'Enter on an empty voucher box: continue', 'F8 split the expenses later', 'Backspace on an empty box: back', 'Alt+C new person', 'Esc leave'],
       body: h('div', { class: 'cols' }, h('div', { class: 'block panel' }, s1, s2, s3, s4, s5, s6), summary),
     });
     A.show(node);
@@ -368,6 +307,7 @@
         A.gateway();
       },
       hotkeys: {
+        F8: () => { if (st.stage !== 'lines') return false; st.splitLater = true; show('remark'); remarkIn.focus(); A.toast('Expense split left for later'); return true; },
         'Alt+C': async () => {
           const id = await addPerson(personIn.value);
           if (id) { const { people } = await api.people.search('', 500); const p = people.find((x) => x.id === id); if (p) choose(p); }

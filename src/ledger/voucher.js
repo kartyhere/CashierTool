@@ -107,6 +107,60 @@ function install(LedgerService) {
     return { person: personOut(person), amount, brought: bring, candidates, drawer: this.drawer() };
   };
 
+  // ---- several vouchers in one entry ----
+  const MAX_VOUCHERS = 200;
+  P._parts = function (input, amount) {
+    if (input === undefined || input === null) return null;
+    if (!Array.isArray(input) || input.length < 1 || input.length > MAX_VOUCHERS) throw new UserError('The voucher amounts are not valid.');
+    const parts = input.map((n) => intIn(n, 1, this._maxAmount(), 'A voucher amount'));
+    if (parts.reduce((t, n) => t + n, 0) !== amount) throw new UserError('The voucher amounts must add up to the total.');
+    return parts.length < 2 ? null : parts;
+  };
+  P._cleanLines = function (input, parts) {
+    if (!Array.isArray(input) || input.length < 1 || input.length > 30 * parts.length) throw new UserError('Add at least one expense line.');
+    const sums = parts.map(() => 0);
+    const lines = input.map((l, i) => {
+      if (!l || typeof l !== 'object') throw new UserError('An expense line is not valid.');
+      const voucherNo = l.voucherNo === undefined || l.voucherNo === null ? (parts.length === 1 ? 1 : null) : l.voucherNo;
+      if (!Number.isInteger(voucherNo) || voucherNo < 1 || voucherNo > parts.length) throw new UserError('An expense line is not linked to a voucher.');
+      const clean = { voucherNo, expenseTypeId: needId(l.expenseTypeId, 'an expense type'), amount: intIn(l.amount, 1, parts[voucherNo - 1], 'A line amount'), note: text(l.note, 120, 'A line note'), sort: i + 1 };
+      sums[voucherNo - 1] += clean.amount;
+      return clean;
+    });
+    sums.forEach((t, i) => { if (t !== parts[i]) throw new UserError(parts.length === 1 ? 'The expense lines must add up to the voucher amount.' : `The expense lines of voucher ${i + 1} must add up to ₹${parts[i]}.`); });
+    return lines;
+  };
+  // Who may change a saved voucher's split: an admin, or a user the admin gave the right. Only while the day is not closed.
+  P._mayEdit = function (s) {
+    if (s.role === 'admin') return true;
+    const u = this.repo.getUser(s.userId);
+    return Boolean(u && u.can_edit);
+  };
+  P.editVoucherSplit = function (input) {
+    const s = this.auth.requireSession();
+    if (!input || typeof input !== 'object') throw new UserError('Fill in the form.');
+    needId(input.id, 'an entry');
+    const remark = text(input.remark, 200, 'The remark');
+    return this.store.transaction(() => {
+      const e = this.repo.getEntry(input.id);
+      if (!e || e.deleted || e.type !== 'voucher') throw new UserError('That voucher was not found.');
+      if (this.repo.dayIsClosed(e.day)) throw new UserError('That day is closed. Ask an admin to reopen the day to change it.', 'DAY_CLOSED');
+      if (!this._mayEdit(s)) throw new UserError('You do not have permission to change entries. Ask an admin.', 'FORBIDDEN');
+      const parts = e.parts_json ? JSON.parse(e.parts_json) : [Number(e.voucher_amount)];
+      const lines = this._cleanLines(input.lines, parts);
+      for (const l of lines) {
+        const t = this.repo.listGet('expense_types', l.expenseTypeId);
+        if (!t || !t.active) throw new UserError('An expense type is not available.');
+      }
+      const before = { lines: this.repo.linesOf(e.id), remark: e.remark };
+      this.repo.deleteLines(e.id);
+      lines.forEach((l) => this.repo.insertLine(e.id, l));
+      this.repo.setRemark(e.id, remark);
+      this.repo.audit({ userId: s.userId, action: 'voucher_split_edit', table: 'entries', rowId: e.id, before, after: { lines, remark } });
+      return { id: e.id };
+    });
+  };
+
   // ---- voucher save ----
   P.saveVoucher = function (input) {
     const s = this.auth.requireSession();
@@ -115,22 +169,12 @@ function install(LedgerService) {
     needId(input.personId, 'a person');
     const give = normalizePieces(input.give || {});
     const back = normalizePieces(input.back || {});
-    // One person, several vouchers, one payout: `parts` are the individual voucher amounts. They are kept in the remark.
-    let parts = null;
-    if (input.parts !== undefined && input.parts !== null) {
-      if (!Array.isArray(input.parts) || input.parts.length < 1 || input.parts.length > 10) throw new UserError('The voucher amounts are not valid.');
-      parts = input.parts.map((n) => intIn(n, 1, this._maxAmount(), 'A voucher amount'));
-      if (parts.reduce((t, n) => t + n, 0) !== amount) throw new UserError('The voucher amounts must add up to the total.');
-      if (parts.length < 2) parts = null;
-    }
-    const userRemark = text(input.remark, 200, 'The remark');
-    const remark = parts ? `Vouchers ${parts.join(' + ')}${userRemark ? ' · ' + userRemark : ''}`.slice(0, 260) : userRemark;
-    if (!Array.isArray(input.lines) || input.lines.length < 1 || input.lines.length > 30) throw new UserError('Add at least one expense line.');
-    const lines = input.lines.map((l, i) => {
-      if (!l || typeof l !== 'object') throw new UserError('An expense line is not valid.');
-      return { expenseTypeId: needId(l.expenseTypeId, 'an expense type'), amount: intIn(l.amount, 1, amount, 'A line amount'), note: text(l.note, 120, 'A line note'), sort: i + 1 };
-    });
-    if (lines.reduce((t, l) => t + l.amount, 0) !== amount) throw new UserError('The expense lines must add up to the voucher amount.');
+    // One person, several vouchers, one payout: `parts` are the individual voucher amounts (no fixed limit, a sanity cap only).
+    const parts = this._parts(input.parts, amount);
+    const remark = text(input.remark, 200, 'The remark');
+    // Expense lines belong to a voucher (voucherNo, 1 for the first). Each voucher's lines must add up to that voucher.
+    // splitLater: the cashier had no time, the split is added afterwards (editVoucherSplit).
+    const lines = input.splitLater === true && (!Array.isArray(input.lines) || input.lines.length === 0) ? [] : this._cleanLines(input.lines, parts || [amount]);
 
     const paid = totalValue(give) - totalValue(back);
     if (paid < 0) throw new UserError('The notes received back are more than the notes given.');
@@ -159,7 +203,7 @@ function install(LedgerService) {
       }
       const entryId = this.repo.insertEntry({
         day, userId: s.userId, type: 'voucher', personId: person.id, voucherAmount: amount, cashDelta: -paid, balanceDelta: delta,
-        remark, flag: outside ? 'outside_limit' : null,
+        remark, flag: outside ? 'outside_limit' : null, partsJson: parts ? JSON.stringify(parts) : null,
       });
       this.repo.insertPieces(entryId, net);
       lines.forEach((l) => this.repo.insertLine(entryId, l));
