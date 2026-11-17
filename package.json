@@ -1,0 +1,54 @@
+{
+  "name": "cash-desk",
+  "productName": "Cash Desk",
+  "version": "0.1.0",
+  "description": "Head-office cashier desk: cash drawer by denomination, vouchers, person balances, bank deposits and day close.",
+  "main": "src/main.js",
+  "author": "Cash Desk",
+  "license": "UNLICENSED",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "test": "node --test test/*.test.cjs",
+    "dist:win": "electron-builder --win portable --x64"
+  },
+  "dependencies": {
+    "sql.js": "1.14.2"
+  },
+  "devDependencies": {
+    "electron": "39.8.10",
+    "electron-builder": "26.15.3"
+  },
+  "build": {
+    "appId": "com.karthik.cashdesk",
+    "productName": "Cash Desk",
+    "asar": true,
+    "compression": "normal",
+    "asarUnpack": [
+      "node_modules/sql.js/dist/sql-wasm.wasm"
+    ],
+    "files": [
+      "src/**/*",
+      "package.json",
+      "node_modules/sql.js/**/*"
+    ],
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "target": [
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "artifactName": "Cash-Desk-${version}-portable.exe",
+      "icon": "src/assets/app-icon.ico"
+    },
+    "portable": {
+      "artifactName": "Cash-Desk-${version}-portable.exe"
+    }
+  }
+}
