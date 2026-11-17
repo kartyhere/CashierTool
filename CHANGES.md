@@ -1,5 +1,10 @@
 # Cash Desk changes
 
+## 0.8.0 — Phase 7: polish, roles check, README
+- Checked every screen in Dark and Light, including Tally check, Day close, Reports, Settings and Backup. README now has screenshots made from dummy data (`scripts/demo-shots.cjs`).
+- A cashier cannot open Settings, change users, restore a backup or reopen a day. This is enforced on the server and tested.
+- README rewritten: what each screen does, key map, data and backups, build steps, and what is not built.
+
 ## 0.7.0 — Phase 6: settings, users, backups
 - Settings (S, admin only) with tabs (Alt+Left / Alt+Right, or Alt+1 to 5): General, Lists, Users, Notes and coins, Backup.
 - General: rounding step, balance limit, largest entry, cash kept after a deposit, deposit banner amount and time, morning check time and repeat, idle lock. Each change is checked and written to the audit log with before and after.

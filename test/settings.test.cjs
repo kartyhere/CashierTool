@@ -79,3 +79,12 @@ test('hidden denominations are never suggested, but still counted', async () => 
   assert.ok(a.ledger.suggestDeposit({}).pieces.N500 > 0);
   assert.throws(() => a.ledger.denominationHide({ id: 'X9', hidden: true }), /Unknown/);
 });
+
+test('a cashier cannot reopen a closed day, restore a backup or change users', async () => {
+  const a = await ready();
+  const info = a.ledger.dayInfo();
+  a.ledger.closeDay({ day: info.day, counted: Object.fromEntries(info.expected.map((d) => [d.id, d.expected])) });
+  asCashier(a);
+  rejects(() => a.ledger.reopenDay({ day: info.day, reason: 'please' }), 'FORBIDDEN');
+  assert.equal(a.ledger.dayInfo({ day: info.day }).canReopen, false);
+});
