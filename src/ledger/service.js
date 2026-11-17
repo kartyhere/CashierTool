@@ -95,6 +95,7 @@ class LedgerService {
     if (type !== undefined && type !== null && typeof type !== 'string') throw new UserError('Choose a valid type.');
     const rows = this.repo.listEntries({ day: d, type: type || null }).map((e) => ({
       id: e.id, day: e.day, at: e.created_at, user: e.user_name, type: e.type, source: e.source,
+      person: e.person_name, flag: e.flag, voucherAmount: e.voucher_amount, balanceDelta: e.balance_delta, lines: this.repo.linesOf(e.id),
       partyName: e.party_name, branch: e.branch_name, department: e.department_name, bank: e.bank_name,
       amount: Math.abs(e.cash_delta), cashDelta: e.cash_delta, bankDelta: e.bank_delta, remark: e.remark, reference: e.reference,
       deleted: Boolean(e.deleted), pieces: this.repo.piecesOf(e.id),
@@ -170,7 +171,7 @@ class LedgerService {
       const e = this.repo.getEntry(entryId);
       if (!e || e.deleted) throw new UserError('That entry was not found.');
       if (this.repo.dayIsClosed(e.day)) throw new UserError('That day is closed. Reopen the day to change it.', 'DAY_CLOSED');
-      if (!['opening', 'cash_in'].includes(e.type)) throw new UserError('This kind of entry cannot be deleted yet.');
+      if (!['opening', 'cash_in', 'voucher', 'settle'].includes(e.type)) throw new UserError('This kind of entry cannot be deleted yet.');
       const pieces = this.repo.piecesOf(entryId);
       const counts = this.repo.drawerCounts();
       for (const [denom, qty] of Object.entries(pieces)) {
@@ -223,4 +224,5 @@ class LedgerService {
   }
 }
 
-module.exports = { LedgerService, normalizePieces, localDay, SOURCES, LIST_ACTIONS };
+module.exports = { LedgerService, normalizePieces, localDay, text, id, SOURCES, LIST_ACTIONS };
+require('./voucher').install(LedgerService);

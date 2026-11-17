@@ -129,3 +129,28 @@ tr[tabindex]:focus .minus, tr[tabindex]:hover .minus { color: var(--ink); }
 .menu { align-content: start; grid-auto-rows: 64px; }
 .menu button { align-items: center; padding-top: 0; padding-bottom: 0; }
 .dash td { padding-top: 3px; padding-bottom: 3px; }
+
+/* ---- Phase 2b: voucher ---- */
+.step { margin-bottom: 18px; }
+.step[hidden] { display: none; }
+.pick { border: 1px solid var(--line-strong); background: var(--sunken); max-height: 220px; overflow: auto; }
+.pick div { padding: 8px 12px; display: flex; justify-content: space-between; gap: 12px; border-bottom: 1px solid var(--line); }
+.pick div.on { background: var(--fill); color: var(--ink); }
+.pick small { color: var(--muted); }
+.pick div.on small { color: var(--ink); }
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; outline: none; }
+.card-opt { border: 1px solid var(--line-strong); padding: 12px; background: var(--raised); }
+.card-opt.on { background: var(--fill); color: var(--ink); border-color: var(--fill); }
+.card-opt b { display: block; font: 560 24px 'Archivo', sans-serif; letter-spacing: -0.02em; }
+.card-opt span { display: block; font-size: 13px; }
+.card-opt .warn { color: var(--warn); font-size: 12px; }
+.card-opt.on .warn { color: var(--ink); }
+.cards:focus-within .card-opt.on { outline: 2px solid var(--brand); outline-offset: 2px; }
+.live { font: 500 12px 'Geist Mono', monospace; text-transform: uppercase; letter-spacing: 0.06em; margin-top: 10px; color: var(--muted); }
+.live.ok { color: var(--brand); }
+.chip { display: inline-block; border: 1px solid var(--line-strong); padding: 4px 10px; font: 500 12px 'Geist Mono', monospace; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 14px; }
+.lines-grid td { padding: 4px 6px; }
+.lines-grid input, .lines-grid select { padding: 6px 8px; font-size: 14px; }
+.lines-grid input.amt { text-align: right; width: 110px; }
+.grid input.back { width: 90px; }
+.mini td { padding: 4px 8px; font-size: 13px; }

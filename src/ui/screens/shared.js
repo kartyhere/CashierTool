@@ -46,5 +46,23 @@
       h('div', { class: 'statusbar' }, hints.map((x) => h('span', {}, x))));
   }
 
-  window.CashDeskShared = { countGrid, piecesText, page };
+  const balanceText = (n) => (n > 0 ? `you owe ${F.inr(n)}` : n < 0 ? `owes you ${F.inr(-n)}` : 'settled');
+
+  // Add a person with three short questions. Returns the new person's id, or null if cancelled.
+  async function addPerson(initialName = '') {
+    const A = window.CashDeskApp;
+    const name = await A.promptDialog({ title: 'New person', label: 'Name', value: initialName });
+    if (name === null) return null;
+    const department = await A.promptDialog({ title: 'New person', label: 'Department (leave empty for none)' });
+    if (department === null) return null;
+    const balance = await A.promptDialog({ title: 'New person', label: 'Balance today (₹). + if you owe them, − if they owe you. 0 if none', value: '0', digits: true, signed: true });
+    if (balance === null) return null;
+    try {
+      const { id } = await A.api.people.save({ name, department, openingBalance: Number(balance || 0) });
+      A.toast(`${name.trim()} added`);
+      return id;
+    } catch (e) { A.toast(e.message); return null; }
+  }
+
+  window.CashDeskShared = { countGrid, piecesText, page, balanceText, addPerson };
 })();

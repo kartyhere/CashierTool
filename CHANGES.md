@@ -1,5 +1,16 @@
 # Cash Desk changes
 
+## 0.3.0 — Phase 2b: voucher, rounding, people balances, note breakup
+- Voucher (F5 or V), all by keyboard: person, amount, payout, notes to give, expense lines, remark, confirmation.
+  - Person search ignores case, spaces and dots ("k.ravi" finds "K Ravi") and also finds near spellings. Alt+C adds a new person on the spot.
+  - Payout choices are rounded to ₹10 and carry the difference as the person's balance (+ you owe them, − they owe you). The balance is included in the next voucher. Left / Right choose, O types any other amount.
+  - Notes to give are suggested from the notes actually in the drawer, using the fewest pieces and avoiding coins. A cycles other breakups. An optional "Back" column takes change back. The net must equal the payout.
+  - Expense lines split the voucher amount (a type can repeat); a new type can be added from the list. One voucher is one cash book entry.
+  - A balance outside ±₹10 needs a second Yes and is marked "over limit" in Entries.
+- People (P): everyone with balance, department and history. S settles (pay what you owe, or collect what they owe), A adds, R renames, Space switches on / off. A new person can be given the balance they have today.
+- Entries now show vouchers and settlements. Deleting one gives the notes and the balance back, and is blocked if the drawer would go below zero.
+- Database upgrades to version 3 (over-limit flag). Existing data is kept (tested).
+
 ## 0.2.0 — Phase 2a: drawer, cash in, entries, lists
 - Gateway now shows the drawer by note and coin, today's opening, receipts, payments, deposits and closing, and the bank balances.
 - Opening count (key O on the Gateway until it is entered): count all 11 notes and coins once. A mistake is fixed by deleting it in Entries and entering it again.

@@ -45,7 +45,10 @@
     const screen = state.screen;
     if (!screen) return;
 
-    if (screen.hotkeys && screen.hotkeys[name]) { event.preventDefault(); screen.hotkeys[name](event); return; }
+    if (screen.hotkeys && screen.hotkeys[name]) {
+      const handled = screen.hotkeys[name](event);
+      if (handled !== false) { event.preventDefault(); return; } // a shortcut can return false to step aside (e.g. a letter typed in a box)
+    }
 
     const target = event.target;
     const inField = target.matches && target.matches('input, textarea, select');

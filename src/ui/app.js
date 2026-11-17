@@ -152,10 +152,10 @@
   }
 
   // One-line text box. Resolves with the text, or null when cancelled.
-  function promptDialog({ title, label, value = '', digits = false }) {
+  function promptDialog({ title, label, value = '', digits = false, signed = false }) {
     return new Promise((resolve) => {
       const input = h('input', { type: 'text', autocomplete: 'off', value, inputmode: digits ? 'numeric' : null });
-      if (digits) input.addEventListener('input', () => { input.value = F.digitsOnly(input.value).slice(0, 12); });
+      if (digits) input.addEventListener('input', () => { const neg = signed && input.value.trim().startsWith('-'); input.value = (neg ? '-' : '') + F.digitsOnly(input.value).slice(0, 12); });
       const ok = h('button', { class: 'primary', type: 'button' }, 'Save');
       const no = h('button', { type: 'button' }, 'Cancel');
       const overlay = h('div', { class: 'overlay dim' }, h('div', { class: 'block dialog' }, h('h2', {}, title),
@@ -190,8 +190,8 @@
   // ---- Gateway ----------------------------------------------------------------------------------------------
   // [key, label, function key, screen name or null (arrives in a later phase)]
   const MENU = [
-    ['V', 'Voucher', 'F5', null], ['I', 'Cash in', 'F6', 'cashin'], ['D', 'Bank deposit', 'F4', null], ['X', 'Exchange', '', null],
-    ['T', 'Tally check', 'Ctrl+T', null], ['E', 'Entries', '', 'entries'], ['P', 'People', '', null], ['C', 'Day close', '', null],
+    ['V', 'Voucher', 'F5', 'voucher'], ['I', 'Cash in', 'F6', 'cashin'], ['D', 'Bank deposit', 'F4', null], ['X', 'Exchange', '', null],
+    ['T', 'Tally check', 'Ctrl+T', null], ['E', 'Entries', '', 'entries'], ['P', 'People', '', 'people'], ['C', 'Day close', '', null],
     ['R', 'Reports', '', null], ['S', 'Settings', '', 'lists'],
   ];
 
@@ -243,7 +243,7 @@
     show(node);
     const hotkeys = {
       'Ctrl+L': lockNow,
-      F5: () => toast('Voucher arrives in a later phase'),
+      F5: () => open('voucher'),
       F4: () => toast('Bank deposit arrives in a later phase'),
       F6: () => open('cashin'),
     };

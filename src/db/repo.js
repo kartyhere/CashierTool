@@ -44,11 +44,11 @@ function createRepo(store) {
     },
     insertEntry(e) {
       return store.run(`INSERT INTO entries (day, created_at, user_id, type, source, person_id, branch_id, department_id, bank_account_id,
-        party_name, voucher_amount, cash_delta, balance_delta, bank_delta, reference, remark)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        party_name, voucher_amount, cash_delta, balance_delta, bank_delta, reference, remark, flag)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [e.day, nowIso(), e.userId, e.type, e.source ?? null, e.personId ?? null, e.branchId ?? null, e.departmentId ?? null,
         e.bankAccountId ?? null, e.partyName ?? null, e.voucherAmount ?? null, e.cashDelta, e.balanceDelta ?? 0, e.bankDelta ?? 0,
-        e.reference ?? null, e.remark ?? null]).lastId;
+        e.reference ?? null, e.remark ?? null, e.flag ?? null]).lastId;
     },
     insertPieces(entryId, pieces) {
       for (const [id, qty] of Object.entries(pieces)) {
@@ -67,11 +67,40 @@ function createRepo(store) {
     dayIsClosed(day) { const r = store.get("SELECT status FROM day_closes WHERE day = ?", [day]); return Boolean(r && r.status === 'closed'); },
     entryDeltas() { return store.all('SELECT day, type, cash_delta FROM entries WHERE deleted = 0'); },
     listEntries({ day, type = null }) {
-      return store.all(`SELECT e.*, u.username AS user_name, b.name AS branch_name, d.name AS department_name, k.name AS bank_name
+      return store.all(`SELECT e.*, u.username AS user_name, pe.name AS person_name, b.name AS branch_name, d.name AS department_name, k.name AS bank_name
         FROM entries e JOIN users u ON u.id = e.user_id
+        LEFT JOIN people pe ON pe.id = e.person_id
         LEFT JOIN branches b ON b.id = e.branch_id LEFT JOIN departments d ON d.id = e.department_id
         LEFT JOIN bank_accounts k ON k.id = e.bank_account_id
         WHERE e.day = ? AND (? IS NULL OR e.type = ?) ORDER BY e.id`, [day, type, type]);
+    },
+
+    // ---- people ----
+    peopleAll() {
+      return store.all(`SELECT p.id, p.name, p.department_id, d.name AS department, p.active,
+        p.opening_balance + COALESCE((SELECT SUM(e.balance_delta) FROM entries e WHERE e.person_id = p.id AND e.deleted = 0), 0) AS balance
+        FROM people p LEFT JOIN departments d ON d.id = p.department_id ORDER BY p.name COLLATE NOCASE`);
+    },
+    personGet(id) { return this.peopleAll().find((p) => p.id === id) || null; },
+    personClash(name, departmentId, exceptId = 0) {
+      return store.get('SELECT id FROM people WHERE name = ? COLLATE NOCASE AND department_id IS ? AND id <> ?', [name, departmentId, exceptId]);
+    },
+    personInsert({ name, departmentId, openingBalance }) {
+      return store.run('INSERT INTO people (name, department_id, opening_balance, active, created_at) VALUES (?, ?, ?, 1, ?)', [name, departmentId, openingBalance, nowIso()]).lastId;
+    },
+    personUpdate(id, { name, departmentId, active }) {
+      store.run('UPDATE people SET name = ?, department_id = ?, active = ? WHERE id = ?', [name, departmentId, active ? 1 : 0, id]);
+    },
+    personHistory(id, limit = 5) {
+      return store.all('SELECT * FROM entries WHERE person_id = ? AND deleted = 0 ORDER BY id DESC LIMIT ?', [id, limit]);
+    },
+    hiddenDenoms() { return store.all('SELECT id FROM denominations WHERE hidden = 1').map((r) => r.id); },
+    insertLine(entryId, { expenseTypeId, amount, note, sort }) {
+      store.run('INSERT INTO voucher_lines (entry_id, expense_type_id, amount, note, sort) VALUES (?, ?, ?, ?, ?)', [entryId, expenseTypeId, amount, note ?? null, sort]);
+    },
+    linesOf(entryId) {
+      return store.all(`SELECT l.amount, l.note, t.name AS type FROM voucher_lines l JOIN expense_types t ON t.id = l.expense_type_id
+        WHERE l.entry_id = ? ORDER BY l.sort`, [entryId]);
     },
 
     // ---- lists (departments, branches, expense types, bank accounts) ----
