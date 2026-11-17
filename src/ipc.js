@@ -69,6 +69,9 @@ function registerIpc({ ipcMain, guard, auth, ledger, repo, store, appInfo, onThe
   handle('voucher.preview', 'unlocked', (p) => ledger.previewVoucher(p));
   handle('voucher.save', 'unlocked', (p) => ledger.saveVoucher(p));
   handle('settle.save', 'unlocked', (p) => ledger.saveSettle(p));
+  handle('deposit.suggest', 'unlocked', () => ledger.suggestDeposit());
+  handle('deposit.save', 'unlocked', (p) => ledger.saveDeposit(p));
+  handle('exchange.save', 'unlocked', (p) => ledger.saveExchange(p));
   handle('lists.get', 'unlocked', () => ledger.lists());
   handle('lists.save', 'unlocked', (p) => ledger.saveListItem(p));
 }

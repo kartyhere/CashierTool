@@ -185,6 +185,68 @@ function install(LedgerService) {
       return { id: entryId, amount, newBalance: Number(person.balance) + sign * amount, personName: person.name };
     });
   };
+
+  // ---- bank deposit ----
+  P.suggestDeposit = function () {
+    this.auth.requireSession();
+    const banks = this.repo.listRows('bank_accounts').filter((b) => b.active).map((b) => ({ id: b.id, name: b.name, balance: this.repo.bankBalance(b.id) }));
+    const { suggest } = require('../core/deposit');
+    return { ...suggest({ stock: this.repo.drawerCounts(), float: this._number('deposit_float', 5000) }), banks };
+  };
+
+  P.saveDeposit = function (input) {
+    const s = this.auth.requireSession();
+    if (!input || typeof input !== 'object') throw new UserError('Fill in the form.');
+    needId(input.bankAccountId, 'a bank');
+    const pieces = normalizePieces(input.pieces);
+    const amount = totalValue(pieces);
+    if (amount < 1) throw new UserError('Enter the notes you are depositing.');
+    if (amount > this._maxAmount()) throw new UserError(`One entry can be at most ₹${this._maxAmount().toLocaleString('en-IN')}.`);
+    const reference = text(input.reference, 60, 'The reference');
+    const remark = text(input.remark, 200, 'The remark');
+    return this.store.transaction(() => {
+      const day = this._openDay();
+      const bank = this.repo.listGet('bank_accounts', input.bankAccountId);
+      if (!bank || !bank.active) throw new UserError('That bank account is not available.');
+      const counts = this.repo.drawerCounts();
+      const net = {};
+      for (const [d, q] of Object.entries(pieces)) {
+        net[d] = -q;
+        if ((counts[d] || 0) - q < 0) throw new UserError(`The drawer has only ${counts[d] || 0} of ${BY_ID[d].label}.`, 'DRAWER_NEGATIVE');
+      }
+      const entryId = this.repo.insertEntry({ day, userId: s.userId, type: 'bank_deposit', bankAccountId: bank.id, cashDelta: -amount, bankDelta: amount, reference, remark });
+      this.repo.insertPieces(entryId, net);
+      this.repo.audit({ userId: s.userId, action: 'entry_save', table: 'entries', rowId: entryId, after: { type: 'bank_deposit', bank: bank.name, amount, reference, pieces } });
+      return { id: entryId, amount, bankName: bank.name, bankBalance: this.repo.bankBalance(bank.id) };
+    });
+  };
+
+  // ---- exchange: notes out, notes in, equal value (e.g. a ₹500 for five ₹100s) ----
+  P.saveExchange = function (input) {
+    const s = this.auth.requireSession();
+    if (!input || typeof input !== 'object') throw new UserError('Fill in the form.');
+    const out = normalizePieces(input.out || {});
+    const inn = normalizePieces(input.in || {});
+    const amount = totalValue(out);
+    if (amount < 1) throw new UserError('Enter the notes going out.');
+    if (totalValue(inn) !== amount) throw new UserError(`Out is ₹${amount} but in is ₹${totalValue(inn)}. They must be equal.`);
+    const remark = text(input.remark, 200, 'The remark');
+    return this.store.transaction(() => {
+      const day = this._openDay();
+      const counts = this.repo.drawerCounts();
+      const net = {};
+      for (const d of DENOMS) {
+        const q = (inn[d.id] || 0) - (out[d.id] || 0);
+        if (q) net[d.id] = q;
+        if ((counts[d.id] || 0) + q < 0) throw new UserError(`The drawer has only ${counts[d.id] || 0} of ${d.label}.`, 'DRAWER_NEGATIVE');
+      }
+      if (!Object.keys(net).length) throw new UserError('Out and in are the same notes. Nothing to exchange.');
+      const entryId = this.repo.insertEntry({ day, userId: s.userId, type: 'exchange', cashDelta: 0, remark });
+      this.repo.insertPieces(entryId, net);
+      this.repo.audit({ userId: s.userId, action: 'entry_save', table: 'entries', rowId: entryId, after: { type: 'exchange', amount, out, in: inn } });
+      return { id: entryId, amount };
+    });
+  };
 }
 
 module.exports = { install };

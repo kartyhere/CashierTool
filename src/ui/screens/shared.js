@@ -31,7 +31,8 @@
     const node = h('table', { class: 'grid' },
       h('thead', {}, h('tr', {}, h('th', {}, 'Note / coin'), h('th', { class: 'n' }, 'Count'), h('th', { class: 'n' }, 'Amount'))),
       h('tbody', {}, rows, h('tr', { class: 'total' }, h('td', {}, 'Total'), h('td', {}), totalCell)));
-    return { node, pieces, total };
+    const set = (p) => { for (const d of DENOMS) inputs[d.id].value = p[d.id] ? String(p[d.id]) : ''; refresh(); };
+    return { node, pieces, total, set };
   }
 
   function piecesText(pieces) {

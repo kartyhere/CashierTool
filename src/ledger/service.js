@@ -3,6 +3,7 @@
 // whatever the page already checked, and the page never sends totals: amounts are worked out from the pieces.
 const { DENOMS, BY_ID, totalValue } = require('../core/denoms');
 const { figures } = require('../core/dayfigures');
+const { suggest: depositSuggest } = require('../core/deposit');
 const { UserError } = require('../errors');
 
 const SOURCES = ['customer', 'branch', 'department', 'bank_withdrawal', 'other'];
@@ -77,12 +78,18 @@ class LedgerService {
     const last = this.repo.lastEntryDay();
     const banks = this.repo.listRows('bank_accounts').filter((b) => b.active)
       .map((b) => ({ id: b.id, name: b.name, balance: this.repo.bankBalance(b.id) }));
+    const drawer = this.drawer();
+    const clock = this.store.now();
+    const hhmm = `${pad(clock.getHours())}:${pad(clock.getMinutes())}`;
+    const limit = Number(this.repo.getSetting('deposit_limit', '500000'));
+    const due = drawer.total >= limit && hhmm >= this.repo.getSetting('deposit_banner_from', '12:00');
     return {
+      depositDue: due ? depositSuggest({ stock: this.repo.drawerCounts(), float: Number(this.repo.getSetting('deposit_float', '5000')) }).total : 0,
       day,
       hasOpening: this.repo.hasOpening(),
       clockBehind: Boolean(last && day < last),
       dayClosed: this.repo.dayIsClosed(day),
-      drawer: this.drawer(),
+      drawer,
       figures: figures(this.repo.entryDeltas(), day),
       banks,
     };
@@ -99,7 +106,7 @@ class LedgerService {
       partyName: e.party_name, branch: e.branch_name, department: e.department_name, bank: e.bank_name,
       amount: Math.abs(e.cash_delta), cashDelta: e.cash_delta, bankDelta: e.bank_delta, remark: e.remark, reference: e.reference,
       deleted: Boolean(e.deleted), pieces: this.repo.piecesOf(e.id),
-    }));
+    })).map((e) => (e.type === 'exchange' ? { ...e, amount: Object.entries(e.pieces).reduce((t, [d, q]) => t + (q < 0 ? -q * BY_ID[d].value : 0), 0) } : e));
     return { day: d, entries: rows, figures: figures(this.repo.entryDeltas(), d) };
   }
 
@@ -171,7 +178,7 @@ class LedgerService {
       const e = this.repo.getEntry(entryId);
       if (!e || e.deleted) throw new UserError('That entry was not found.');
       if (this.repo.dayIsClosed(e.day)) throw new UserError('That day is closed. Reopen the day to change it.', 'DAY_CLOSED');
-      if (!['opening', 'cash_in', 'voucher', 'settle'].includes(e.type)) throw new UserError('This kind of entry cannot be deleted yet.');
+      if (!['opening', 'cash_in', 'voucher', 'settle', 'bank_deposit', 'exchange'].includes(e.type)) throw new UserError('This kind of entry cannot be deleted yet.');
       const pieces = this.repo.piecesOf(entryId);
       const counts = this.repo.drawerCounts();
       for (const [denom, qty] of Object.entries(pieces)) {

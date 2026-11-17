@@ -22,6 +22,8 @@
       const bal = e.balanceDelta ? ` · balance ${e.balanceDelta > 0 ? '+' : '−'}${F.inr(Math.abs(e.balanceDelta), { symbol: false })}` : '';
       return [e.person, F.inr(e.voucherAmount) + bal, lines, e.remark].filter(Boolean).join(' · ');
     }
+    if (e.type === 'bank_deposit') return [e.bank, e.reference && `Ref ${e.reference}`, e.remark].filter(Boolean).join(' · ');
+    if (e.type === 'exchange') return ['Exchange', e.remark].filter(Boolean).join(' · ');
     if (e.type === 'settle') return [e.person, e.cashDelta < 0 ? 'Paid' : 'Collected', e.remark].filter(Boolean).join(' · ');
     if (e.type === 'cash_in') {
       const where = e.branch || e.department || e.bank || '';
@@ -39,7 +41,7 @@
       h('td', {}, timeOf(e.at)),
       h('td', {}, TYPES[e.type] || e.type, e.deleted ? h('span', { class: 'tag' }, 'deleted') : null, e.flag ? h('span', { class: 'tag' }, 'over limit') : null),
       h('td', {}, detail(e), h('div', { class: 'lede' }, piecesText(e.pieces))),
-      h('td', { class: 'n' + (e.cashDelta < 0 ? ' minus' : '') }, (e.cashDelta < 0 ? '−' : '+') + F.inr(e.amount, { symbol: false })),
+      h('td', { class: 'n' + (e.cashDelta < 0 ? ' minus' : '') }, (e.type === 'exchange' ? '' : (e.cashDelta < 0 ? '−' : '+')) + F.inr(e.amount, { symbol: false })),
       h('td', {}, e.user)));
 
     const node = page({

@@ -38,6 +38,8 @@ contextBridge.exposeInMainWorld('cashdesk', {
   people: { search: (q, limit, includeInactive) => call('people.search', { q, limit, includeInactive: Boolean(includeInactive) }), save: (data) => call('people.save', data), history: (id, limit) => call('people.history', { id, limit }) },
   voucher: { preview: (data) => call('voucher.preview', data), save: (data) => call('voucher.save', data) },
   settle: { save: (data) => call('settle.save', data) },
+  deposit: { suggest: () => call('deposit.suggest'), save: (data) => call('deposit.save', data) },
+  exchange: { save: (data) => call('exchange.save', data) },
   lists: { get: () => call('lists.get'), save: (data) => call('lists.save', data) },
   // The main process locks the app after idle time and tells the page. Returns a function that stops listening.
   onLocked(callback) {

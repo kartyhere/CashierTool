@@ -190,7 +190,7 @@
   // ---- Gateway ----------------------------------------------------------------------------------------------
   // [key, label, function key, screen name or null (arrives in a later phase)]
   const MENU = [
-    ['V', 'Voucher', 'F5', 'voucher'], ['I', 'Cash in', 'F6', 'cashin'], ['D', 'Bank deposit', 'F4', null], ['X', 'Exchange', '', null],
+    ['V', 'Voucher', 'F5', 'voucher'], ['I', 'Cash in', 'F6', 'cashin'], ['D', 'Bank deposit', 'F4', 'deposit'], ['X', 'Exchange', '', 'exchange'],
     ['T', 'Tally check', 'Ctrl+T', null], ['E', 'Entries', '', 'entries'], ['P', 'People', '', 'people'], ['C', 'Day close', '', null],
     ['R', 'Reports', '', null], ['S', 'Settings', '', 'lists'],
   ];
@@ -214,6 +214,10 @@
     const side = h('div', { class: 'dash' });
     if (dash) {
       if (dash.clockBehind) side.append(h('div', { class: 'banner bad' }, "This PC's date is earlier than the last entry. Fix the Windows date and time before adding entries."));
+      if (dash.depositDue) {
+        side.append(h('div', { class: 'banner' }, h('span', {}, `Cash is ${F.inr(dash.drawer.total)}. A bank deposit of about ${F.inr(dash.depositDue)} is due.`),
+          h('button', { type: 'button', on: { click: () => open('deposit') } }, 'Deposit (D)')));
+      }
       if (!dash.hasOpening) {
         side.append(h('div', { class: 'banner' }, h('span', {}, 'The drawer has no opening count yet.'),
           h('button', { type: 'button', on: { click: () => open('opening') } }, 'Enter it (O)')));
@@ -244,7 +248,7 @@
     const hotkeys = {
       'Ctrl+L': lockNow,
       F5: () => open('voucher'),
-      F4: () => toast('Bank deposit arrives in a later phase'),
+      F4: () => open('deposit'),
       F6: () => open('cashin'),
     };
     if (dash && !dash.hasOpening) hotkeys.O = () => open('opening');

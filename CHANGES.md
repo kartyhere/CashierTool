@@ -1,5 +1,11 @@
 # Cash Desk changes
 
+## 0.4.0 — Phase 3: bank deposit and exchange
+- Bank deposit (F4 or D): choose the bank, the notes are suggested (₹500, ₹200, ₹100 only, largest first, never coins, the drawer keeps at least the ₹5,000 float) and can be changed. Reference number and remark are optional. Cash goes down, the bank balance goes up, and the day's Deposits figure moves.
+- The Gateway shows a deposit banner when cash reaches ₹5,00,000 and it is past 12:00, with the suggested amount.
+- Exchange (X): notes out and notes in, side by side. It can only be saved when both sides are equal and the drawer has what goes out. The drawer total does not change.
+- Entries show deposits (with bank and reference) and exchanges. Both can be deleted unless the drawer would go below zero.
+
 ## 0.3.0 — Phase 2b: voucher, rounding, people balances, note breakup
 - Voucher (F5 or V), all by keyboard: person, amount, payout, notes to give, expense lines, remark, confirmation.
   - Person search ignores case, spaces and dots ("k.ravi" finds "K Ravi") and also finds near spellings. Alt+C adds a new person on the spot.
