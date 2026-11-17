@@ -159,6 +159,46 @@ function createRepo(store) {
       return b ? Number(b.opening_balance) + Number(s.s) : 0;
     },
 
+    // ---- reports (read only) ----
+    reportEntries(from, to) {
+      return store.all(`SELECT e.*, u.username AS user_name, pe.name AS person_name, COALESCE(e.department_id, pe.department_id) AS dept_id,
+        COALESCE(d.name, pd.name) AS department_name, b.name AS branch_name, k.name AS bank_name
+        FROM entries e JOIN users u ON u.id = e.user_id LEFT JOIN people pe ON pe.id = e.person_id
+        LEFT JOIN departments d ON d.id = e.department_id LEFT JOIN departments pd ON pd.id = pe.department_id
+        LEFT JOIN branches b ON b.id = e.branch_id LEFT JOIN bank_accounts k ON k.id = e.bank_account_id
+        WHERE e.deleted = 0 AND e.day >= ? AND e.day <= ? ORDER BY e.day, e.id`, [from, to]);
+    },
+    reportPieces(from, to) {
+      return store.all(`SELECT e.day, e.type, e.id AS entry_id, p.denom_id, p.qty FROM entry_pieces p JOIN entries e ON e.id = p.entry_id
+        WHERE e.deleted = 0 AND e.day >= ? AND e.day <= ? ORDER BY e.id`, [from, to]);
+    },
+    openingPieces(day) {
+      const out = {};
+      for (const r of store.all(`SELECT p.denom_id AS id, SUM(p.qty) AS qty FROM entry_pieces p JOIN entries e ON e.id = p.entry_id
+        WHERE e.deleted = 0 AND (e.day < ? OR (e.day = ? AND e.type = 'opening')) GROUP BY p.denom_id`, [day, day])) out[r.id] = Number(r.qty);
+      return out;
+    },
+    reportLines(from, to) {
+      return store.all(`SELECT e.id AS entry_id, e.day, e.created_at, pe.name AS person_name, pd.name AS department_name, t.name AS type, l.amount, l.note, l.sort
+        FROM voucher_lines l JOIN entries e ON e.id = l.entry_id JOIN expense_types t ON t.id = l.expense_type_id
+        LEFT JOIN people pe ON pe.id = e.person_id LEFT JOIN departments pd ON pd.id = COALESCE(e.department_id, pe.department_id)
+        WHERE e.deleted = 0 AND e.day >= ? AND e.day <= ? ORDER BY e.day, e.id, l.sort`, [from, to]);
+    },
+    dayClosesRange(from, to) { return store.all('SELECT * FROM day_closes WHERE day >= ? AND day <= ? ORDER BY day', [from, to]); },
+    tallyRange(from, to) {
+      return store.all(`SELECT t.*, u.username AS user_name FROM tally_checks t JOIN users u ON u.id = t.user_id
+        WHERE t.day >= ? AND t.day <= ? ORDER BY t.day, t.id`, [from, to]);
+    },
+    peopleBalancesAsOf(day) {
+      return store.all(`SELECT p.id, p.name, d.name AS department, p.active,
+        p.opening_balance + COALESCE((SELECT SUM(e.balance_delta) FROM entries e WHERE e.person_id = p.id AND e.deleted = 0 AND e.day <= ?), 0) AS balance
+        FROM people p LEFT JOIN departments d ON d.id = p.department_id ORDER BY p.name COLLATE NOCASE`, [day]);
+    },
+    banksAsOf(day) {
+      return store.all(`SELECT k.id, k.name, k.opening_balance + COALESCE((SELECT SUM(e.bank_delta) FROM entries e
+        WHERE e.bank_account_id = k.id AND e.deleted = 0 AND e.day <= ?), 0) AS balance FROM bank_accounts k ORDER BY k.name COLLATE NOCASE`, [day]);
+    },
+
     // ---- audit log ----
     audit({ userId = null, action, table = null, rowId = null, before = null, after = null }) {
       store.run(

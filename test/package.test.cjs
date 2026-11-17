@@ -17,5 +17,5 @@ test('CHANGES.md has an entry for this version', () => {
 });
 test('the build ships only what it needs', () => {
   assert.ok(pkg.build.files.includes('src/**/*'));
-  assert.ok(!Object.keys(pkg.dependencies).some((d) => d !== 'sql.js'));
+  assert.ok(!Object.keys(pkg.dependencies).some((d) => !['sql.js', 'exceljs', 'jspdf'].includes(d)));
 });

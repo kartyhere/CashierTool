@@ -103,6 +103,15 @@ async function boot() {
     ipcMain, guard, auth, ledger, repo, store,
     appInfo: { name: app.getName(), version: app.getVersion() },
     onThemeChange: (theme) => { nativeTheme.themeSource = theme; },
+    chooseSavePath: async ({ defaultName, format, folder }) => {
+      // Tests (unpackaged only) save into a folder instead of opening the Windows save box.
+      if (!app.isPackaged && process.env.CASHDESK_EXPORT_DIR) return require('node:path').join(process.env.CASHDESK_EXPORT_DIR, defaultName);
+      const r = await dialog.showSaveDialog(mainWindow, {
+        title: 'Save report', defaultPath: require('node:path').join(folder || app.getPath('documents'), defaultName),
+        filters: [format === 'pdf' ? { name: 'PDF', extensions: ['pdf'] } : { name: 'Excel', extensions: ['xlsx'] }],
+      });
+      return r.canceled ? null : r.filePath;
+    },
   });
 
   // Lock after idle time (the page reports activity), and when Windows itself is locked or goes to sleep.

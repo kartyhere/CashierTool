@@ -247,4 +247,4 @@ class LedgerService {
 
 module.exports = { LedgerService, normalizePieces, localDay, text, id, SOURCES, LIST_ACTIONS };
 require('./voucher').install(LedgerService);
-require('./dayclose').install(LedgerService);
+require('./dayclose').install(LedgerService); require('./reports').install(LedgerService);

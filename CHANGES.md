@@ -1,5 +1,12 @@
 # Cash Desk changes
 
+## 0.6.0 — Phase 5: reports and exports
+- Reports (R): nine reports for one day or a date range, shown on screen and exported as PDF (Alt+P) or Excel (Alt+X). Cash book, Denomination report (with Cashier and Manager signature lines on the PDF), Day entries, Voucher register, Payments by person, Expense summary, Receipts by source, Bank deposits, Person balances.
+- Screen, PDF and Excel come from the same tables, so their totals always agree. Excel keeps numbers as numbers. PDF is A4 landscape with page numbers (amounts are written as plain rupees; the PDF font has no rupee sign).
+- Files are named like CashDesk-CashBook-2026-11-16.pdf. The save box remembers the last folder.
+- Payments by person can be filtered to one person, Bank deposits to one bank. Person balances can be shown as at any date.
+- Fixed: the Phase 1 smoke test was out of date (the T key now opens Tally check).
+
 ## 0.5.0 — Phase 4: Tally check, morning check, day close
 - Tally check (T or Ctrl+T from any screen, except in the middle of a voucher): enter Tally's cash balance, optionally count the drawer. Shows the difference (app − Tally) and keeps a list of today's checks.
 - Morning check: from 09:15 a pop-up shows the last working day (opening, receipts, payments and deposits, closing) and asks for Tally's closing balance. Later or Esc asks again after 30 minutes.

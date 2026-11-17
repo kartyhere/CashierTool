@@ -43,8 +43,9 @@ const shot = (page, name) => page.screenshot({ path: path.join(out, name + '.png
   await page.keyboard.press('ArrowUp');
   assert.equal(await page.evaluate(() => document.activeElement.dataset.key), 'S');
   await page.keyboard.press('t');
-  await page.waitForFunction(() => !document.getElementById('toast').hidden);
-  assert.match(await page.textContent('#toast'), /Tally check/);
+  await page.waitForSelector('input[aria-label="Tally balance"]');
+  await page.keyboard.press('Escape');
+  await page.waitForSelector('.menu');
   await shot(page, '2-gateway-dark');
 
   // Theme toggle persists

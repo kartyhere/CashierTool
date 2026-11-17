@@ -41,6 +41,7 @@ contextBridge.exposeInMainWorld('cashdesk', {
   deposit: { suggest: () => call('deposit.suggest'), save: (data) => call('deposit.save', data) },
   exchange: { save: (data) => call('exchange.save', data) },
   tally: { check: (data) => call('tally.check', data), list: (day) => call('tally.list', day ? { day } : {}) },
+  report: { list: () => call('report.list'), run: (data) => call('report.run', data), export: (data) => call('report.export', data) },
   day: { info: (day) => call('day.info', day ? { day } : {}), close: (data) => call('day.close', data), reopen: (day, reason) => call('day.reopen', { day, reason }) },
   morning: { status: () => call('morning.status'), done: (data) => call('morning.done', data), snooze: () => call('morning.snooze') },
   lists: { get: () => call('lists.get'), save: (data) => call('lists.save', data) },

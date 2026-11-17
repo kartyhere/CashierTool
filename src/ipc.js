@@ -24,7 +24,7 @@ function describe(error, log) {
   return { ok: false, code: 'ERROR', message: 'Something went wrong. Nothing was changed.' };
 }
 
-function registerIpc({ ipcMain, guard, auth, ledger, repo, store, appInfo, onThemeChange = () => {}, log = (e) => console.error(e) }) {
+function registerIpc({ ipcMain, guard, auth, ledger, repo, store, appInfo, onThemeChange = () => {}, chooseSavePath = async () => null, log = (e) => console.error(e) }) {
   function handle(channel, access, fn) {
     ipcMain.handle(channel, async (event, payload) => {
       try {
@@ -80,6 +80,20 @@ function registerIpc({ ipcMain, guard, auth, ledger, repo, store, appInfo, onThe
   handle('morning.status', 'unlocked', () => ledger.morningStatus());
   handle('morning.done', 'unlocked', (p) => ledger.morningDone(p));
   handle('morning.snooze', 'unlocked', () => ledger.morningSnooze());
+  handle('report.list', 'unlocked', () => ledger.reportList());
+  handle('report.run', 'unlocked', (p) => ledger.runReport(p));
+  // Export: the report is built again here (never trusting what the page shows), then the person picks where it goes.
+  handle('report.export', 'unlocked', async (p) => {
+    const format = p.format;
+    if (format !== 'pdf' && format !== 'xlsx') throw new UserError('Choose PDF or Excel.');
+    const report = ledger.runReport(p);
+    const target = await chooseSavePath({ defaultName: `${report.fileName}.${format}`, format, folder: repo.getSetting('export_folder', null) });
+    if (!target) return { cancelled: true };
+    const bytes = format === 'pdf' ? require('./export/pdf').toPdf(report) : await require('./export/xlsx').toXlsx(report);
+    require('node:fs').writeFileSync(target, bytes);
+    store.transaction(() => repo.setSetting('export_folder', require('node:path').dirname(target)), { defer: true });
+    return { path: target };
+  });
   handle('lists.get', 'unlocked', () => ledger.lists());
   handle('lists.save', 'unlocked', (p) => ledger.saveListItem(p));
 }

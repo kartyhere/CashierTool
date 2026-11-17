@@ -19,7 +19,7 @@ test('page: CSP meta present (script run by the build), no inline handlers or sc
   assert.ok(!/https?:\/\//.test(html + css));
 });
 test('app code never uses innerHTML or eval', () => {
-  for (const f of ['app.js', 'dom.js', 'keys.js', 'nav-logic.js', 'screens/shared.js', 'screens/opening.js', 'screens/cashin.js', 'screens/entries.js', 'screens/lists.js', 'screens/voucher.js', 'screens/people.js', 'screens/settle.js', 'screens/deposit.js', 'screens/exchange.js', 'screens/tally.js', 'screens/dayclose.js']) {
+  for (const f of ['app.js', 'dom.js', 'keys.js', 'nav-logic.js', 'screens/shared.js', 'screens/opening.js', 'screens/cashin.js', 'screens/entries.js', 'screens/lists.js', 'screens/voucher.js', 'screens/people.js', 'screens/settle.js', 'screens/deposit.js', 'screens/exchange.js', 'screens/tally.js', 'screens/dayclose.js', 'screens/reports.js']) {
     const s = read('src/ui/' + f);
     assert.ok(!/innerHTML|outerHTML|insertAdjacentHTML|eval\(|new Function/.test(s), f);
   }
