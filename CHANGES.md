@@ -1,5 +1,12 @@
 # Cash Desk changes
 
+## 0.11.0 — Several vouchers from one person
+- Voucher screen: after the first amount, press Enter and a "Voucher 2" box appears below it. Fill it and press Enter for a third, and so on (up to 10). Press Enter on an empty box to carry on. Backspace on an empty box removes it.
+- The vouchers are added into one total. You get one payout, one set of notes and one set of expense lines (they start from the total).
+- The entry keeps the separate amounts in its remark, for example "Vouchers 120 + 143 · tea". The confirm box lists them too.
+- One extra Enter for a single voucher: type the amount, Enter, Enter again on the empty box.
+- Brought-by-receiver applies to the total.
+
 ## 0.10.0 — Easier navigation
 - Gateway is now one vertical list. Up and Down move one line at a time (before, the two columns made the cursor jump sideways).
 - Settings opens with the cursor on the tab bar, not in the first box. Left and Right change tab, Down or Enter go into the page, Alt+Up comes back to the tabs. After an action inside a tab (adding a user, backing up) the cursor stays in the page.

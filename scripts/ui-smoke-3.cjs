@@ -45,7 +45,7 @@ const toast = async (page, re) => { await page.waitForFunction((s) => !document.
   await page.waitForSelector('.overlay input'); await page.keyboard.press('Enter');   // balance 0
   await page.waitForSelector('.chip:not([hidden])');
   assert.match(await text(page, '.chip'), /Ravi Kumar/);
-  await page.keyboard.type('244'); await page.keyboard.press('Enter');
+  await page.keyboard.type('244'); await page.keyboard.press('Enter'); await page.keyboard.press('Enter');
   await page.waitForSelector('.card-opt');
   assert.match(await text(page, '.card-opt.on'), /₹240/);
   assert.match(await text(page, '.card-opt.on'), /you owe ₹4/);
@@ -71,7 +71,7 @@ const toast = async (page, re) => { await page.waitForFunction((s) => !document.
   await page.keyboard.type('ravi');
   await page.waitForFunction(() => document.querySelector('.pick div.on'));
   await page.keyboard.press('Enter');
-  await page.keyboard.type('258'); await page.keyboard.press('Enter');
+  await page.keyboard.type('258'); await page.keyboard.press('Enter'); await page.keyboard.press('Enter');
   await page.waitForSelector('.card-opt');
   assert.match(await text(page, '.card-opt.on'), /₹260/);
   assert.match(await text(page, '.card-opt.on'), /you owe ₹2/);
@@ -112,7 +112,7 @@ const toast = async (page, re) => { await page.waitForFunction((s) => !document.
   await page.click('button[title="Switch theme"]');
   await page.keyboard.press('F5'); await page.waitForSelector('input[aria-label="Person"]');
   await page.keyboard.type('rav'); await page.keyboard.press('Enter');
-  await page.keyboard.type('1250'); await page.keyboard.press('Enter');
+  await page.keyboard.type('1250'); await page.keyboard.press('Enter'); await page.keyboard.press('Enter');
   await page.waitForSelector('.card-opt');
   await page.keyboard.press('Enter');
   await page.waitForSelector('table.grid');

@@ -198,3 +198,19 @@ test('brought cash empty: third card is the exact voucher amount; bad brought va
   assert.equal(typed.candidates[0].custom, true);
   assert.ok(typed.candidates.some((x) => x.exact && x.gross === 250));
 });
+
+test('several vouchers from one person: one payout, amounts kept in the remark', async () => {
+  const a = await ready();
+  const ravi = a.person('Ravi', 'Sales');
+  const p = a.ledger.previewVoucher({ personId: ravi, amount: 263 });         // 120 + 143 together
+  const r = a.ledger.saveVoucher({ personId: ravi, amount: 263, parts: [120, 143], give: p.candidates[0].breakups[0], lines: [{ expenseTypeId: a.expense, amount: 263 }], remark: 'tea' });
+  assert.equal(r.paid, 260);
+  const e = a.ledger.personHistory({ id: ravi, limit: 1 }).entries[0];
+  assert.equal(e.voucherAmount, 263);
+  assert.equal(e.remark, 'Vouchers 120 + 143 · tea');
+  assert.throws(() => a.ledger.saveVoucher({ personId: ravi, amount: 263, parts: [120, 100], give: {}, lines: [{ expenseTypeId: a.expense, amount: 263 }] }), /add up/);
+  assert.throws(() => a.ledger.saveVoucher({ personId: ravi, amount: 263, parts: [263, 0], give: {}, lines: [{ expenseTypeId: a.expense, amount: 263 }] }), /not valid/);
+  const one = a.ledger.saveVoucher({ personId: ravi, amount: 50, parts: [50], give: { N50: 1 }, lines: [{ expenseTypeId: a.expense, amount: 50 }] });
+  assert.equal(a.ledger.personHistory({ id: ravi, limit: 1 }).entries[0].remark || '', '');   // a single voucher adds nothing to the remark
+  assert.equal(one.paid, 50);
+});

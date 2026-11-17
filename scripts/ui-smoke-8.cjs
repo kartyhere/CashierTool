@@ -32,7 +32,7 @@ const toast = async (page, re) => { await page.waitForFunction((s) => !document.
   // voucher 263, Tab to the brought field, 7
   await page.keyboard.type('263'); await page.keyboard.press('Tab'); await page.keyboard.type('7');
   await shot(page, 'b1-fields');
-  await page.keyboard.press('Enter');
+  await page.keyboard.press('Enter'); await page.keyboard.press('Enter');   // second Enter: no second voucher
   await page.waitForSelector('.card-opt');
   const cards = await page.$$eval('.card-opt', (n) => n.map((x) => x.textContent));
   assert.equal(cards.length, 3);
@@ -56,7 +56,7 @@ const toast = async (page, re) => { await page.waitForFunction((s) => !document.
   await toast(page, 'Voucher saved: ₹263 paid to Meena');
   // empty brought field still goes straight on with Enter in the amount box
   await page.keyboard.type('meena'); await page.waitForFunction(() => document.querySelector('.pick div.on')); await page.keyboard.press('Enter');
-  await page.keyboard.type('100'); await page.keyboard.press('Enter');
+  await page.keyboard.type('100'); await page.keyboard.press('Enter'); await page.keyboard.press('Enter');
   await page.waitForSelector('.card-opt');
   assert.match(await page.textContent('.card-opt:nth-child(3)'), /exact voucher amount/);
   await app.close();

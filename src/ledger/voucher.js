@@ -115,7 +115,16 @@ function install(LedgerService) {
     needId(input.personId, 'a person');
     const give = normalizePieces(input.give || {});
     const back = normalizePieces(input.back || {});
-    const remark = text(input.remark, 200, 'The remark');
+    // One person, several vouchers, one payout: `parts` are the individual voucher amounts. They are kept in the remark.
+    let parts = null;
+    if (input.parts !== undefined && input.parts !== null) {
+      if (!Array.isArray(input.parts) || input.parts.length < 1 || input.parts.length > 10) throw new UserError('The voucher amounts are not valid.');
+      parts = input.parts.map((n) => intIn(n, 1, this._maxAmount(), 'A voucher amount'));
+      if (parts.reduce((t, n) => t + n, 0) !== amount) throw new UserError('The voucher amounts must add up to the total.');
+      if (parts.length < 2) parts = null;
+    }
+    const userRemark = text(input.remark, 200, 'The remark');
+    const remark = parts ? `Vouchers ${parts.join(' + ')}${userRemark ? ' · ' + userRemark : ''}`.slice(0, 260) : userRemark;
     if (!Array.isArray(input.lines) || input.lines.length < 1 || input.lines.length > 30) throw new UserError('Add at least one expense line.');
     const lines = input.lines.map((l, i) => {
       if (!l || typeof l !== 'object') throw new UserError('An expense line is not valid.');
@@ -154,7 +163,7 @@ function install(LedgerService) {
       });
       this.repo.insertPieces(entryId, net);
       lines.forEach((l) => this.repo.insertLine(entryId, l));
-      this.repo.audit({ userId: s.userId, action: 'entry_save', table: 'entries', rowId: entryId, after: { type: 'voucher', person: person.name, amount, paid, balanceDelta: delta, newBalance, lines, give, back } });
+      this.repo.audit({ userId: s.userId, action: 'entry_save', table: 'entries', rowId: entryId, after: { type: 'voucher', person: person.name, amount, parts, paid, balanceDelta: delta, newBalance, lines, give, back } });
       return { id: entryId, paid, newBalance, personName: person.name };
     });
   };

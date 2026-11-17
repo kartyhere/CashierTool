@@ -14,7 +14,7 @@
     let types;
     try { types = (await api.lists.get()).expenseTypes.filter((t) => t.active); } catch (e) { A.toast(e.message); return; }
 
-    const st = { person: null, amount: 0, brought: 0, preview: null, sel: 0, alts: [], altIdx: 0, results: [], pick: 0, stage: 'person' };
+    const st = { person: null, amount: 0, parts: [], brought: 0, preview: null, sel: 0, alts: [], altIdx: 0, results: [], pick: 0, stage: 'person' };
 
     // ---- step 1: person ----
     const personIn = h('input', { type: 'text', autocomplete: 'off', placeholder: 'Type a name', 'aria-label': 'Person' });
@@ -27,9 +27,31 @@
     digits(amountIn, 8);
     const broughtIn = h('input', { type: 'text', inputmode: 'numeric', autocomplete: 'off', 'aria-label': 'Brought by receiver' });
     digits(broughtIn, 8);
-    const s2 = h('div', { class: 'step amount-row', hidden: true },
-      h('label', { class: 'field' }, h('span', {}, 'Voucher amount (₹)'), amountIn),
-      h('label', { class: 'field' }, h('span', {}, 'Brought by receiver (₹, Tab)'), broughtIn));
+    // More vouchers from the same person: a new box appears under the last one each time it is filled and Enter is pressed.
+    const amts = [amountIn];
+    const moreBox = h('div', { class: 'more-vouchers' });
+    const totalNote = h('p', { class: 'lede', hidden: true });
+    const MAX_VOUCHERS = 10;
+    const partsNow = () => amts.map((i) => Number(i.value || 0)).filter((n) => n > 0);
+    function updateTotal() {
+      const p = partsNow();
+      totalNote.hidden = p.length < 2;
+      totalNote.textContent = `${p.length} vouchers · ${p.join(' + ')} = ${F.inr(p.reduce((t, n) => t + n, 0))}`;
+    }
+    amountIn.addEventListener('input', updateTotal);
+    function addVoucherRow() {
+      const input = h('input', { type: 'text', inputmode: 'numeric', autocomplete: 'off', 'aria-label': `Voucher ${amts.length + 1} amount` });
+      digits(input, 8); input.addEventListener('input', updateTotal);
+      amts.push(input);
+      moreBox.append(h('label', { class: 'field' }, h('span', {}, `Voucher ${amts.length} (₹)`), input));
+      input.focus();
+    }
+    function clearVoucherRows() { amts.length = 1; moreBox.replaceChildren(); totalNote.hidden = true; }
+    const s2 = h('div', { class: 'step', hidden: true },
+      h('div', { class: 'amount-row' },
+        h('label', { class: 'field' }, h('span', {}, 'Voucher amount (₹)'), amountIn),
+        h('label', { class: 'field' }, h('span', {}, 'Brought by receiver (₹, Tab)'), broughtIn)),
+      moreBox, totalNote);
 
     // ---- step 3: payout ----
     const cards = h('div', { class: 'cards', tabindex: '0', 'aria-label': 'Payout choices' });
@@ -123,20 +145,36 @@
 
     // ---------- step 2 ----------
     const goPreview = async () => {
-      const n = Number(amountIn.value);
-      if (!n) { A.toast('Enter the voucher amount'); amountIn.focus(); return; }
-      st.amount = n; st.brought = Number(broughtIn.value || 0);
+      const parts = partsNow();
+      if (!parts.length) { A.toast('Enter the voucher amount'); amountIn.focus(); return; }
+      st.parts = parts; st.amount = parts.reduce((t, n) => t + n, 0); st.brought = Number(broughtIn.value || 0);
       await loadPreview();
     };
+    // Enter on a box: the next box; on the last box, a filled one adds another voucher and an empty one carries on.
+    const enterOn = async (i) => {
+      if (i < amts.length - 1) { amts[i + 1].focus(); amts[i + 1].select(); return; }
+      if (amts[i].value === '') { if (i === 0) { A.toast('Enter the voucher amount'); return; } await goPreview(); return; }
+      if (amts.length >= MAX_VOUCHERS) { await goPreview(); return; }
+      addVoucherRow();
+    };
     amountIn.addEventListener('keydown', async (e) => {
-      if (e.key === 'Backspace' && amountIn.value === '') { e.preventDefault(); show('person'); personIn.focus(); personIn.select(); return; }
+      if (e.key === 'Backspace' && amountIn.value === '' && amts.length === 1) { e.preventDefault(); show('person'); personIn.focus(); personIn.select(); return; }
       if (e.key !== 'Enter') return;
-      e.preventDefault(); await goPreview();
+      e.preventDefault(); await enterOn(0);
     });
     broughtIn.addEventListener('keydown', async (e) => {
       if (e.key === 'Backspace' && broughtIn.value === '') { e.preventDefault(); amountIn.focus(); amountIn.select(); return; }
       if (e.key !== 'Enter') return;
-      e.preventDefault(); await goPreview();
+      e.preventDefault(); await enterOn(0);
+    });
+    // boxes added later: Backspace on an empty one removes it and goes back up
+    moreBox.addEventListener('keydown', async (e) => {
+      const i = amts.indexOf(e.target);
+      if (i < 1) return;
+      if (e.key === 'Enter') { e.preventDefault(); await enterOn(i); }
+      else if (e.key === 'Backspace' && e.target.value === '' && i === amts.length - 1) {
+        e.preventDefault(); amts.pop(); moreBox.lastElementChild.remove(); updateTotal(); amts[amts.length - 1].focus(); amts[amts.length - 1].select();
+      }
     });
     async function loadPreview(customPayout) {
       try {
@@ -289,12 +327,12 @@
           expenseTypeId: Number(row.querySelector('select').value), amount: Number(row.querySelector('input.amt').value), note: row.querySelector('input.note').value,
         })).filter((l) => l.expenseTypeId && l.amount);
         const newBalance = Number(st.person.balance) + st.amount - c.payout;
-        const summaryLines = [['Person', st.person.name], ['Voucher', F.inr(st.amount)], ['Pay', F.inr(c.payout)], ...(c.brought ? [['Brought by receiver', F.inr(c.brought)]] : []), ['Balance after', balanceText(newBalance)],
+        const summaryLines = [['Person', st.person.name], [st.parts.length > 1 ? `Vouchers (${st.parts.length})` : 'Voucher', st.parts.length > 1 ? `${st.parts.map((n) => F.inr(n)).join(' + ')} = ${F.inr(st.amount)}` : F.inr(st.amount)], ['Pay', F.inr(c.payout)], ...(c.brought ? [['Brought by receiver', F.inr(c.brought)]] : []), ['Balance after', balanceText(newBalance)],
           ['Give', piecesText(give) || 'nothing'], ...(sum(back) ? [['Receive back', piecesText(back)]] : []),
           ...lines.map((l) => [types.find((t) => t.id === l.expenseTypeId).name, F.inr(l.amount)])];
         if (remarkIn.value.trim()) summaryLines.push(['Remark', remarkIn.value.trim()]);
         if (!await A.confirmDialog({ title: 'Save this voucher?', lines: summaryLines, yesLabel: 'Save' })) { remarkIn.focus(); return; }
-        const payload = { personId: st.person.id, amount: st.amount, give, back, lines, remark: remarkIn.value };
+        const payload = { personId: st.person.id, amount: st.amount, parts: st.parts, give, back, lines, remark: remarkIn.value };
         let result;
         try { result = await api.voucher.save(payload); } catch (e) {
           if (e.code !== 'CONFIRM_LIMIT') throw e;
@@ -307,7 +345,7 @@
     }
 
     function reset() {
-      st.person = null; st.preview = null; st.amount = 0; st.brought = 0;
+      st.person = null; st.preview = null; st.amount = 0; st.parts = []; st.brought = 0; clearVoucherRows();
       personIn.value = ''; amountIn.value = ''; broughtIn.value = ''; remarkIn.value = ''; chip.hidden = true; pickList.hidden = true; st.results = [];
       linesBody.replaceChildren(); error.textContent = '';
       refreshSummary();
@@ -318,7 +356,7 @@
     // ---------- screen ----------
     const node = page({
       title: 'Voucher',
-      hints: ['Enter next step', 'Backspace on an empty box: back', 'Alt+C new person', 'Esc leave'],
+      hints: ['Enter next step', 'Enter on an empty voucher box: continue', 'Backspace on an empty box: back', 'Alt+C new person', 'Esc leave'],
       body: h('div', { class: 'cols' }, h('div', { class: 'block panel' }, s1, s2, s3, s4, s5, s6), summary),
     });
     A.show(node);
