@@ -14,7 +14,7 @@
     let types;
     try { types = (await api.lists.get()).expenseTypes.filter((t) => t.active); } catch (e) { A.toast(e.message); return; }
 
-    const st = { person: null, amount: 0, preview: null, sel: 0, alts: [], altIdx: 0, results: [], pick: 0, stage: 'person' };
+    const st = { person: null, amount: 0, brought: 0, preview: null, sel: 0, alts: [], altIdx: 0, results: [], pick: 0, stage: 'person' };
 
     // ---- step 1: person ----
     const personIn = h('input', { type: 'text', autocomplete: 'off', placeholder: 'Type a name', 'aria-label': 'Person' });
@@ -25,7 +25,11 @@
     // ---- step 2: amount ----
     const amountIn = h('input', { type: 'text', inputmode: 'numeric', autocomplete: 'off', 'aria-label': 'Voucher amount' });
     digits(amountIn, 8);
-    const s2 = h('div', { class: 'step', hidden: true }, h('label', { class: 'field' }, h('span', {}, 'Voucher amount (₹)'), amountIn));
+    const broughtIn = h('input', { type: 'text', inputmode: 'numeric', autocomplete: 'off', 'aria-label': 'Brought by receiver' });
+    digits(broughtIn, 8);
+    const s2 = h('div', { class: 'step amount-row', hidden: true },
+      h('label', { class: 'field' }, h('span', {}, 'Voucher amount (₹)'), amountIn),
+      h('label', { class: 'field' }, h('span', {}, 'Brought by receiver (₹, Tab)'), broughtIn));
 
     // ---- step 3: payout ----
     const cards = h('div', { class: 'cards', tabindex: '0', 'aria-label': 'Payout choices' });
@@ -118,18 +122,25 @@
     });
 
     // ---------- step 2 ----------
+    const goPreview = async () => {
+      const n = Number(amountIn.value);
+      if (!n) { A.toast('Enter the voucher amount'); amountIn.focus(); return; }
+      st.amount = n; st.brought = Number(broughtIn.value || 0);
+      await loadPreview();
+    };
     amountIn.addEventListener('keydown', async (e) => {
       if (e.key === 'Backspace' && amountIn.value === '') { e.preventDefault(); show('person'); personIn.focus(); personIn.select(); return; }
       if (e.key !== 'Enter') return;
-      e.preventDefault();
-      const n = Number(amountIn.value);
-      if (!n) { A.toast('Enter the voucher amount'); return; }
-      st.amount = n;
-      await loadPreview();
+      e.preventDefault(); await goPreview();
+    });
+    broughtIn.addEventListener('keydown', async (e) => {
+      if (e.key === 'Backspace' && broughtIn.value === '') { e.preventDefault(); amountIn.focus(); amountIn.select(); return; }
+      if (e.key !== 'Enter') return;
+      e.preventDefault(); await goPreview();
     });
     async function loadPreview(customPayout) {
       try {
-        st.preview = await api.voucher.preview({ personId: st.person.id, amount: st.amount, ...(customPayout !== undefined ? { payout: customPayout } : {}) });
+        st.preview = await api.voucher.preview({ personId: st.person.id, amount: st.amount, brought: st.brought, ...(customPayout !== undefined ? { payout: customPayout } : {}) });
       } catch (e) { A.toast(e.message); return; }
       st.sel = 0;
       renderCards(); show('payout'); cards.focus();
@@ -139,7 +150,9 @@
     function renderCards() {
       const names = Object.fromEntries(DENOMS.map((d) => [d.id, d.label]));
       cards.replaceChildren(...st.preview.candidates.map((c, i) => h('div', { class: 'card-opt' + (i === st.sel ? ' on' : '') },
-        h('b', {}, F.inr(c.payout)),
+        c.exact ? h('span', { class: 'tag' }, 'Custom') : null,
+        h('b', {}, F.inr(c.gross)),
+        c.exact ? h('span', {}, c.brought ? `receiver brings back ${F.inr(c.brought)}` : 'exact voucher amount') : null,
         h('span', {}, c.newBalance === 0 ? 'balance settled' : `then ${balanceText(c.newBalance)}`),
         c.custom ? h('span', { class: 'warn' }, 'typed by hand') : null,
         !c.withinLimit ? h('span', { class: 'warn' }, 'outside the balance limit') : null,
@@ -160,6 +173,7 @@
         st.alts = c.breakups; st.altIdx = 0;
         for (const d of DENOMS) { stockCell[d.id].textContent = String(st.preview.drawer.rows.find((r) => r.id === d.id).qty); backIn[d.id].value = ''; }
         setGive(st.alts[0]);
+        if (c.brought) { let left = c.brought; for (const d of [...DENOMS].sort((x, y) => y.value - x.value)) { const q = Math.floor(left / d.value); if (q) { backIn[d.id].value = String(q); left -= q * d.value; } } updateLive(); }
         show('breakup'); giveIn[DENOMS[0].id].focus(); giveIn[DENOMS[0].id].select();
       }
     });
@@ -275,7 +289,7 @@
           expenseTypeId: Number(row.querySelector('select').value), amount: Number(row.querySelector('input.amt').value), note: row.querySelector('input.note').value,
         })).filter((l) => l.expenseTypeId && l.amount);
         const newBalance = Number(st.person.balance) + st.amount - c.payout;
-        const summaryLines = [['Person', st.person.name], ['Voucher', F.inr(st.amount)], ['Pay', F.inr(c.payout)], ['Balance after', balanceText(newBalance)],
+        const summaryLines = [['Person', st.person.name], ['Voucher', F.inr(st.amount)], ['Pay', F.inr(c.payout)], ...(c.brought ? [['Brought by receiver', F.inr(c.brought)]] : []), ['Balance after', balanceText(newBalance)],
           ['Give', piecesText(give) || 'nothing'], ...(sum(back) ? [['Receive back', piecesText(back)]] : []),
           ...lines.map((l) => [types.find((t) => t.id === l.expenseTypeId).name, F.inr(l.amount)])];
         if (remarkIn.value.trim()) summaryLines.push(['Remark', remarkIn.value.trim()]);
@@ -293,8 +307,8 @@
     }
 
     function reset() {
-      st.person = null; st.preview = null; st.amount = 0;
-      personIn.value = ''; amountIn.value = ''; remarkIn.value = ''; chip.hidden = true; pickList.hidden = true; st.results = [];
+      st.person = null; st.preview = null; st.amount = 0; st.brought = 0;
+      personIn.value = ''; amountIn.value = ''; broughtIn.value = ''; remarkIn.value = ''; chip.hidden = true; pickList.hidden = true; st.results = [];
       linesBody.replaceChildren(); error.textContent = '';
       refreshSummary();
       show('person'); personIn.focus();

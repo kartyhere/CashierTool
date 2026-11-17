@@ -10,15 +10,16 @@
   else root.CashDeskPayout = factory(root.CashDeskBreakup);
 })(typeof self !== 'undefined' ? self : this, function (Breakup) {
   // One payout figure, checked against the drawer. custom = typed by hand rather than rounded.
-  function evaluate({ amount, balance, payout, stock, limit, ids, custom = false }) {
-    const alternatives = Breakup.breakups(payout, stock);
+  // gross: what leaves the drawer when the receiver hands some cash back (payout + brought). Defaults to payout.
+  function evaluate({ amount, balance, payout, stock, limit, ids, custom = false, gross = payout, brought = 0, exact = false }) {
+    const alternatives = Breakup.breakups(gross, stock);
     const newBalance = balance + amount - payout;
     return {
-      payout, newBalance, custom,
+      payout, gross, brought, exact, newBalance, custom,
       withinLimit: Math.abs(newBalance) <= limit,
       payable: alternatives.length > 0,
       breakups: alternatives,
-      shortBy: alternatives.length ? [] : Breakup.shortBy(payout, stock, ids),
+      shortBy: alternatives.length ? [] : Breakup.shortBy(gross, stock, ids),
     };
   }
 

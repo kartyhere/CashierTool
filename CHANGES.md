@@ -1,5 +1,12 @@
 # Cash Desk changes
 
+## 0.9.0 — Cash brought by the receiver
+- Voucher screen has a new box next to the amount: "Brought by receiver (₹)". Press Tab to reach it, Enter in either box carries on. Leave it empty for the usual flow.
+- The third payout card is now "Custom": it pays voucher + brought, and the receiver hands the brought cash back. The person's balance does not change. Example: voucher ₹263, receiver brings ₹7, you give ₹270 and take ₹7 back.
+- On the notes screen, the Back column is pre-filled with the brought cash (largest notes first). Change it if the receiver gave different notes or coins.
+- The confirm box shows "Brought by receiver". Saved entries are unchanged in format: net paid is still given minus received.
+- With the box empty, the third card is the exact voucher amount.
+
 ## 0.8.1 — Gateway selection is now easy to see
 - The tile you are on (keyboard or mouse) now turns into a solid block like the buttons do. Before, its text went pale on a pale background and looked faded, especially in Light.
 

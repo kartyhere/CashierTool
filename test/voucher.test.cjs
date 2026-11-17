@@ -164,3 +164,37 @@ test('upgrade from version 2: the data stays and the flag column appears', async
   assert.equal(store.get('SELECT cash_delta, flag FROM entries').cash_delta, 500);
   assert.equal(store.all('SELECT * FROM expense_types').length, 7);
 });
+
+test('brought cash: third card pays voucher + brought, receiver hands the brought cash back, balance unchanged', async () => {
+  const a = await ready();
+  const ravi = a.person('Ravi', 'Sales', 4);                          // we owe Ravi 4 already
+  const before = a.ledger.dashboard().drawer.total;
+  const p = a.ledger.previewVoucher({ personId: ravi, amount: 263, brought: 7 });
+  assert.equal(p.candidates.length, 3);
+  const c = p.candidates[2];
+  assert.equal(c.exact, true);
+  assert.equal(c.gross, 270);
+  assert.equal(c.brought, 7);
+  assert.equal(c.payout, 263);
+  assert.equal(c.newBalance, 4);                                      // balance does not move
+  assert.ok(c.payable);
+  assert.ok(c.breakups[0] && Object.entries(c.breakups[0]).reduce((t, [id, n]) => t + n * { N500: 500, N200: 200, N100: 100, N50: 50, N20: 20, N10: 10, C10: 10, C5: 5, C2: 2, C1: 1 }[id], 0) === 270);
+  const r = a.pay(ravi, 263, c.breakups[0], { back: { C5: 1, C2: 1 } });   // receiver gives back 5 + 2
+  assert.equal(r.paid, 263);
+  assert.equal(r.newBalance, 4);
+  assert.equal(a.ledger.dashboard().drawer.total, before - 263);
+});
+
+test('brought cash empty: third card is the exact voucher amount; bad brought value is refused', async () => {
+  const a = await ready();
+  const ravi = a.person('Ravi');
+  const c = a.ledger.previewVoucher({ personId: ravi, amount: 244 }).candidates[2];
+  assert.equal(c.exact, true);
+  assert.equal(c.gross, 244);
+  assert.equal(c.brought, 0);
+  assert.throws(() => a.ledger.previewVoucher({ personId: ravi, amount: 244, brought: -1 }), /not valid/);
+  assert.throws(() => a.ledger.previewVoucher({ personId: ravi, amount: 244, brought: 1.5 }), /not valid/);
+  const typed = a.ledger.previewVoucher({ personId: ravi, amount: 244, payout: 240, brought: 6 });
+  assert.equal(typed.candidates[0].custom, true);
+  assert.ok(typed.candidates.some((x) => x.exact && x.gross === 250));
+});

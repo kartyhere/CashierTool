@@ -134,6 +134,9 @@ tr[tabindex]:focus .minus, tr[tabindex]:hover .minus { color: var(--ink); }
 /* ---- Phase 2b: voucher ---- */
 .step { margin-bottom: 18px; }
 .step[hidden] { display: none; }
+.amount-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.amount-row[hidden] { display: none; }
+.card-opt .tag { font: 500 11px 'Geist Mono', monospace; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 4px; }
 .pick { border: 1px solid var(--line-strong); background: var(--sunken); max-height: 220px; overflow: auto; }
 .pick div { padding: 8px 12px; display: flex; justify-content: space-between; gap: 12px; border-bottom: 1px solid var(--line); }
 .pick div.on { background: var(--fill); color: var(--ink); }

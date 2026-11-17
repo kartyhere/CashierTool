@@ -86,22 +86,25 @@ function install(LedgerService) {
   };
 
   // ---- voucher preview: payout choices and note breakups, nothing is saved ----
-  P.previewVoucher = function ({ personId, amount, payout }) {
+  // brought: cash the receiver hands back so the pay-out comes to round notes. The third card ("Custom") pays voucher + brought
+  // and takes the brought cash back, so the person's balance does not change.
+  P.previewVoucher = function ({ personId, amount, payout, brought }) {
     this.auth.requireSession();
     needId(personId, 'a person');
     intIn(amount, 1, this._maxAmount(), 'The amount');
+    const bring = brought === undefined || brought === null ? 0 : intIn(brought, 0, this._maxAmount(), 'The amount brought');
     const person = this.repo.personGet(personId);
     if (!person || !person.active) throw new UserError('Choose a person who is in the list.');
     const stock = this._stock();
     const args = { amount, balance: Number(person.balance), stock, step: this._number('rounding_step', 10, 1), limit: this._number('balance_limit', 10), ids: this._visibleIds() };
-    const candidates = payoutCandidates(args);
+    const candidates = payoutCandidates({ ...args, count: 2 });
+    candidates.push(evaluate({ ...args, payout: amount, gross: amount + bring, brought: bring, exact: true }));
     if (payout !== undefined && payout !== null) {
       intIn(payout, 0, this._maxAmount() * 2, 'The payout');
-      const custom = evaluate({ ...args, payout, custom: true });
-      candidates.unshift(custom);
-      return { person: personOut(person), amount, candidates: candidates.filter((c, i) => i === 0 || c.payout !== payout).slice(0, 4), drawer: this.drawer() };
+      const typed = evaluate({ ...args, payout, custom: true });
+      return { person: personOut(person), amount, brought: bring, candidates: [typed, ...candidates.filter((c) => c.exact || c.payout !== payout)].slice(0, 4), drawer: this.drawer() };
     }
-    return { person: personOut(person), amount, candidates, drawer: this.drawer() };
+    return { person: personOut(person), amount, brought: bring, candidates, drawer: this.drawer() };
   };
 
   // ---- voucher save ----
