@@ -1,5 +1,16 @@
 # Cash Desk changes
 
+## 0.7.0 — Phase 6: settings, users, backups
+- Settings (S, admin only) with tabs (Alt+Left / Alt+Right, or Alt+1 to 5): General, Lists, Users, Notes and coins, Backup.
+- General: rounding step, balance limit, largest entry, cash kept after a deposit, deposit banner amount and time, morning check time and repeat, idle lock. Each change is checked and written to the audit log with before and after.
+- Users: add users (admin or cashier), set a new password, switch on or off. The last active admin cannot be switched off, and you cannot change your own role.
+- Notes and coins: hide a note or coin so it is never suggested (payouts, deposits). Pieces already in the drawer are still counted.
+- Backup: set a backup password (P), choose a folder (F), back up now (B), restore (select a backup, Enter). A backup is made automatically after each day close and when you quit (skipped if nothing changed). The newest 30 are kept. Backups are sealed with the backup password, so they restore on any PC. A safety copy of the current data is made before every restore. The Gateway warns an admin until a backup password is set.
+- A cashier cannot open Settings, users, backups or reopen a day (checked on the server, not only hidden).
+- Bank deposit suggestions now respect hidden notes and coins.
+- Fixed: Esc inside Lists returns to Settings.
+- New packages: exceljs and jspdf are now inside the app (already used by 0.6.0).
+
 ## 0.6.0 — Phase 5: reports and exports
 - Reports (R): nine reports for one day or a date range, shown on screen and exported as PDF (Alt+P) or Excel (Alt+X). Cash book, Denomination report (with Cashier and Manager signature lines on the PDF), Day entries, Voucher register, Payments by person, Expense summary, Receipts by source, Bank deposits, Person balances.
 - Screen, PDF and Excel come from the same tables, so their totals always agree. Excel keeps numbers as numbers. PDF is A4 landscape with page numbers (amounts are written as plain rupees; the PDF font has no rupee sign).

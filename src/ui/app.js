@@ -167,9 +167,9 @@
   }
 
   // One-line text box. Resolves with the text, or null when cancelled.
-  function promptDialog({ title, label, value = '', digits = false, signed = false }) {
+  function promptDialog({ title, label, value = '', digits = false, signed = false, secret = false }) {
     return new Promise((resolve) => {
-      const input = h('input', { type: 'text', autocomplete: 'off', value, inputmode: digits ? 'numeric' : null });
+      const input = h('input', { type: secret ? 'password' : 'text', autocomplete: 'off', value, inputmode: digits ? 'numeric' : null });
       if (digits) input.addEventListener('input', () => { const neg = signed && input.value.trim().startsWith('-'); input.value = (neg ? '-' : '') + F.digitsOnly(input.value).slice(0, 12); });
       const ok = h('button', { class: 'primary', type: 'button' }, 'Save');
       const no = h('button', { type: 'button' }, 'Cancel');
@@ -207,7 +207,7 @@
   const MENU = [
     ['V', 'Voucher', 'F5', 'voucher'], ['I', 'Cash in', 'F6', 'cashin'], ['D', 'Bank deposit', 'F4', 'deposit'], ['X', 'Exchange', '', 'exchange'],
     ['T', 'Tally check', 'Ctrl+T', 'tally'], ['E', 'Entries', '', 'entries'], ['P', 'People', '', 'people'], ['C', 'Day close', '', 'dayclose'],
-    ['R', 'Reports', '', 'reports'], ['S', 'Settings', '', 'lists'],
+    ['R', 'Reports', '', 'reports'], ['S', 'Settings', '', 'settings'],
   ];
 
   function enterGateway(user) {
@@ -216,7 +216,10 @@
     setTimeout(checkMorning, 600);
   }
 
-  function open(screen) { Screens[screen].open(); }
+  function open(screen) {
+    if (screen === 'settings' && (!session || session.role !== 'admin')) { toast('Only an admin can open Settings'); return; }
+    Screens[screen].open();
+  }
 
   async function gateway() {
     let dash = null;
@@ -230,6 +233,10 @@
     const side = h('div', { class: 'dash' });
     if (dash) {
       if (dash.clockBehind) side.append(h('div', { class: 'banner bad' }, "This PC's date is earlier than the last entry. Fix the Windows date and time before adding entries."));
+      if (dash.backupOff && session && session.role === 'admin') {
+        side.append(h('div', { class: 'banner' }, h('span', {}, 'Backups are off. Set a backup password so the data can be restored.'),
+          h('button', { type: 'button', on: { click: () => Screens.settings.open('backup') } }, 'Settings (S)')));
+      }
       if (dash.earlierOpen) {
         side.append(h('div', { class: 'banner bad' }, h('span', {}, `${dash.earlierOpen} is not closed yet. Close it before new entries.`),
           h('button', { type: 'button', on: { click: () => open('dayclose') } }, 'Day close (C)')));

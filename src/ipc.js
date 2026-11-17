@@ -24,7 +24,7 @@ function describe(error, log) {
   return { ok: false, code: 'ERROR', message: 'Something went wrong. Nothing was changed.' };
 }
 
-function registerIpc({ ipcMain, guard, auth, ledger, repo, store, appInfo, onThemeChange = () => {}, chooseSavePath = async () => null, log = (e) => console.error(e) }) {
+function registerIpc({ ipcMain, guard, auth, ledger, repo, store, appInfo, onThemeChange = () => {}, chooseSavePath = async () => null, chooseFolder = async () => null, backups = null, afterRestore = () => {}, log = (e) => console.error(e) }) {
   function handle(channel, access, fn) {
     ipcMain.handle(channel, async (event, payload) => {
       try {
@@ -75,7 +75,11 @@ function registerIpc({ ipcMain, guard, auth, ledger, repo, store, appInfo, onThe
   handle('tally.check', 'unlocked', (p) => ledger.tallyCheck(p));
   handle('tally.list', 'unlocked', (p) => ledger.tallyList(p));
   handle('day.info', 'unlocked', (p) => ledger.dayInfo(p));
-  handle('day.close', 'unlocked', (p) => ledger.closeDay(p));
+  handle('day.close', 'unlocked', (p) => {
+    const r = ledger.closeDay(p);
+    // The backup is made after the close is saved. If it fails the day stays closed and the page is told.
+    return backups ? { ...r, backup: backups.auto('day close') } : r;
+  });
   handle('day.reopen', 'unlocked', (p) => ledger.reopenDay(p));
   handle('morning.status', 'unlocked', () => ledger.morningStatus());
   handle('morning.done', 'unlocked', (p) => ledger.morningDone(p));
@@ -93,6 +97,30 @@ function registerIpc({ ipcMain, guard, auth, ledger, repo, store, appInfo, onThe
     require('node:fs').writeFileSync(target, bytes);
     store.transaction(() => repo.setSetting('export_folder', require('node:path').dirname(target)), { defer: true });
     return { path: target };
+  });
+  handle('settings.get', 'unlocked', () => ledger.settingsGet());
+  handle('settings.save', 'unlocked', (p) => ledger.settingsSave(p));
+  handle('users.list', 'unlocked', () => ledger.usersList());
+  handle('users.save', 'unlocked', (p) => ledger.userSave(p));
+  handle('denominations.list', 'unlocked', () => ledger.denominationsList());
+  handle('denominations.hide', 'unlocked', (p) => ledger.denominationHide(p));
+  const needBackups = () => { if (!backups) throw new UserError('Backups are not available.'); return backups; };
+  handle('backup.status', 'unlocked', () => { auth.requireRole('admin'); return needBackups().status(); });
+  handle('backup.setPassword', 'unlocked', (p) => { auth.requireRole('admin'); needBackups().setPassword(p.password); return needBackups().status(); });
+  handle('backup.now', 'unlocked', () => { auth.requireRole('admin'); return needBackups().create('manual'); });
+  handle('backup.chooseFolder', 'unlocked', async () => {
+    auth.requireRole('admin');
+    const dir = await chooseFolder({ current: needBackups().folder() });
+    if (!dir) return { cancelled: true };
+    needBackups().setFolder(dir);
+    return { folder: dir };
+  });
+  handle('backup.restore', 'unlocked', (p) => {
+    auth.requireRole('admin');
+    const r = needBackups().restore({ name: p.name, password: p.password });
+    auth.signOut();
+    afterRestore();
+    return r;
   });
   handle('lists.get', 'unlocked', () => ledger.lists());
   handle('lists.save', 'unlocked', (p) => ledger.saveListItem(p));

@@ -96,8 +96,9 @@ class LedgerService {
     const limit = Number(this.repo.getSetting('deposit_limit', '500000'));
     const due = drawer.total >= limit && hhmm >= this.repo.getSetting('deposit_banner_from', '12:00');
     return {
-      depositDue: due ? depositSuggest({ stock: this.repo.drawerCounts(), float: Number(this.repo.getSetting('deposit_float', '5000')) }).total : 0,
+      depositDue: due ? depositSuggest({ stock: this._stock(), float: Number(this.repo.getSetting('deposit_float', '5000')) }).total : 0,
       day,
+      backupOff: this.repo.getSetting('backup_salt', null) === null,
       earlierOpen: this.repo.daysWithEntries().find((d) => d < day && !this.repo.dayIsClosed(d)) || null,
       hasOpening: this.repo.hasOpening(),
       clockBehind: Boolean(last && day < last),
@@ -247,4 +248,6 @@ class LedgerService {
 
 module.exports = { LedgerService, normalizePieces, localDay, text, id, SOURCES, LIST_ACTIONS };
 require('./voucher').install(LedgerService);
-require('./dayclose').install(LedgerService); require('./reports').install(LedgerService);
+require('./dayclose').install(LedgerService);
+require('./reports').install(LedgerService);
+require('./settings').install(LedgerService);

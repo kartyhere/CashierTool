@@ -26,7 +26,7 @@ const text = (page, sel) => page.textContent(sel);
   await page.fill('#u', 'karthik'); await page.fill('#p', '1234'); await page.fill('#p2', '1234'); await page.keyboard.press('Enter');
   await page.waitForSelector('.menu');
   await page.waitForSelector('.banner');
-  assert.match(await text(page, '.banner'), /no opening count/);
+  assert.match(await text(page, '.gateway'), /no opening count/);
   await shot(page, 'a-gateway-no-opening');
 
   // Opening count, mostly by keyboard
@@ -44,7 +44,7 @@ const text = (page, sel) => page.textContent(sel);
   await page.keyboard.press('y');
   await page.waitForSelector('.menu');
   await page.waitForFunction(() => document.querySelector('.dash').textContent.includes('7,007'));
-  assert.equal(await page.locator('.banner').count(), 0);
+  assert.equal(await page.locator('.banner:has-text("opening count")').count(), 0);
   await shot(page, 'd-gateway-dark');
 
   // Cash in from a new branch
@@ -83,8 +83,10 @@ const text = (page, sel) => page.textContent(sel);
   await page.waitForFunction(() => document.querySelector('.dash').textContent.includes('7,007'));
 
   // Lists: add a department with the keyboard, then see it in Settings in the Light theme
-  await page.click('button[title="Switch theme"]');
   await page.keyboard.press('s');
+  await page.waitForSelector('input[data-key="rounding_step"]');
+  await page.keyboard.press('Alt+2');
+  await page.waitForFunction(() => /Settings · Lists/.test(document.body.textContent));
   await page.waitForSelector('.tabs');
   await page.keyboard.press('a');
   await page.waitForSelector('.overlay input');
@@ -93,7 +95,7 @@ const text = (page, sel) => page.textContent(sel);
   await page.keyboard.press('ArrowRight'); await page.keyboard.press('ArrowRight'); await page.keyboard.press('ArrowRight');
   await page.waitForFunction(() => document.body.textContent.includes('Bank 1'));
   await shot(page, 'g-lists-banks-light');
-  await page.keyboard.press('Escape');
+  await page.keyboard.press('Escape'); await page.waitForSelector('input[data-key="rounding_step"]'); await page.keyboard.press('Escape');
   await page.waitForSelector('.menu');
   await shot(page, 'h-gateway-light');
 

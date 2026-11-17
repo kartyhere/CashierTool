@@ -10,6 +10,7 @@ const { Store } = require('./db/store');
 const { createRepo } = require('./db/repo');
 const { AuthService } = require('./auth/service');
 const { LedgerService } = require('./ledger/service');
+const { BackupService } = require('./backup/service');
 const { registerIpc } = require('./ipc');
 
 const APP_ID = 'com.karthik.cashdesk';
@@ -30,6 +31,7 @@ const testKeystore = {
 
 let mainWindow = null;
 let store = null;
+let backups = null;
 let idleTimer = null;
 
 function fatal(title, error) {
@@ -97,12 +99,22 @@ async function boot() {
   const repo = createRepo(store);
   const auth = new AuthService({ store, repo });
   const ledger = new LedgerService({ store, repo, auth });
+  const keystore = useTestKeystore ? testKeystore : safeStorage;
+  backups = new BackupService({ store, repo, safeStorage: keystore, userDataDir: app.getPath('userData'),
+    defaultDir: path.join(app.getPath('userData'), 'backups'), now: () => new Date(Date.now() + clockOffset) });
 
   nativeTheme.themeSource = repo.getSetting('theme', 'dark');
   registerIpc({
     ipcMain, guard, auth, ledger, repo, store,
     appInfo: { name: app.getName(), version: app.getVersion() },
     onThemeChange: (theme) => { nativeTheme.themeSource = theme; },
+    backups,
+    chooseFolder: async ({ current }) => {
+      if (!app.isPackaged && process.env.CASHDESK_BACKUP_DIR) return process.env.CASHDESK_BACKUP_DIR; // tests
+      const r = await dialog.showOpenDialog(mainWindow, { title: 'Backup folder', defaultPath: current, properties: ['openDirectory', 'createDirectory'] });
+      return r.canceled || !r.filePaths.length ? null : r.filePaths[0];
+    },
+    afterRestore: () => setTimeout(() => { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.reload(); }, 400),
     chooseSavePath: async ({ defaultName, format, folder }) => {
       // Tests (unpackaged only) save into a folder instead of opening the Windows save box.
       if (!app.isPackaged && process.env.CASHDESK_EXPORT_DIR) return require('node:path').join(process.env.CASHDESK_EXPORT_DIR, defaultName);
@@ -134,6 +146,7 @@ if (!app.requestSingleInstanceLock()) {
   app.on('window-all-closed', () => app.quit());
   app.on('before-quit', () => {
     if (idleTimer) clearInterval(idleTimer);
+    if (backups && store) backups.auto('quit'); // a failed backup never stops the app from closing
     try { if (store) store.close(); } catch (error) { console.error('Could not save on exit:', error); }
   });
 }

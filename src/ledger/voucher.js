@@ -191,7 +191,7 @@ function install(LedgerService) {
     this.auth.requireSession();
     const banks = this.repo.listRows('bank_accounts').filter((b) => b.active).map((b) => ({ id: b.id, name: b.name, balance: this.repo.bankBalance(b.id) }));
     const { suggest } = require('../core/deposit');
-    return { ...suggest({ stock: this.repo.drawerCounts(), float: this._number('deposit_float', 5000) }), banks };
+    return { ...suggest({ stock: this._stock(), float: this._number('deposit_float', 5000) }), banks };
   };
 
   P.saveDeposit = function (input) {

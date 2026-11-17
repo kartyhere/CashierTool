@@ -19,7 +19,7 @@
       isBank ? h('td', { class: 'n' }, F.inr(x.balance)) : null));
 
     const node = page({
-      title: 'Settings · Lists',
+      title: 'Settings · Lists  (Esc: back to Settings)',
       hints: ['← → switch list', '↑ ↓ choose', 'A add', 'R rename', 'Space switch on / off', 'Esc back'],
       body: [
         h('div', { class: 'tabs' }, TABS.map(([k, label]) => h('button', { type: 'button', class: k === tabKey ? 'on' : '', on: { click: () => open(k) } }, label))),
@@ -57,7 +57,7 @@
 
     const hop = (d) => open(TABS[(tab + d + TABS.length) % TABS.length][0]);
     Keys.setScreen({
-      root: node, menu: { root: node }, onEsc: () => A.gateway(),
+      root: node, menu: { root: node }, onEsc: () => window.CashDeskScreens.settings.open('general'),
       hotkeys: { ArrowLeft: () => hop(-1), ArrowRight: () => hop(1), A: add, R: rename, Space: toggle },
     });
     const target = (focusId && node.querySelector(`[data-id="${focusId}"]`)) || node.querySelector('[data-menu-item]');

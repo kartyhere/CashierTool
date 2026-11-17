@@ -22,6 +22,11 @@ function createRepo(store) {
         [username, passHash, role, nowIso()],
       ).lastId;
     },
+    usersAll() { return store.all('SELECT id, username, role, active, created_at FROM users ORDER BY username COLLATE NOCASE'); },
+    userUpdate(id, { role, active }) { store.run('UPDATE users SET role = ?, active = ? WHERE id = ?', [role, active ? 1 : 0, id]); },
+    activeAdmins() { return Number(store.get("SELECT COUNT(*) AS n FROM users WHERE role = 'admin' AND active = 1").n); },
+    denominationRows() { return store.all('SELECT id, value, kind, sort, hidden FROM denominations ORDER BY sort'); },
+    setDenominationHidden(id, hidden) { store.run('UPDATE denominations SET hidden = ? WHERE id = ?', [hidden ? 1 : 0, id]); },
     setPasswordHash(id, passHash) {
       store.run('UPDATE users SET pass_hash = ? WHERE id = ?', [passHash, id]);
     },

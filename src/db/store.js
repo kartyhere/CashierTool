@@ -28,6 +28,7 @@ class Store {
     this.depth = 0;
     this.lastSaveError = null;
     this.closed = false;
+    this.writes = 0; // saves to disk so far (used to skip a backup when nothing changed)
   }
 
   // vault: from createVault. SQL: the result of initSqlJs(). A file that exists but cannot be opened is an error;
@@ -111,6 +112,7 @@ class Store {
       // export() closes and reopens the database, which resets pragmas: switch foreign keys back on.
       this.db.run('PRAGMA foreign_keys = ON');
       this.vault.write(this.role, bytes);
+      this.writes += 1;
       this.dirty = false;
       this.lastSaveError = null;
     } catch (error) {
@@ -118,6 +120,34 @@ class Store {
       this.dirty = true;
       throw new PersistError(`The change could not be saved to disk (${error.message}). Free some space or check the folder, then try again.`);
     }
+  }
+
+  // A copy of the whole database as bytes, for a backup. Not allowed in the middle of a transaction.
+  snapshot() {
+    if (this.depth > 0) throw new Error('Cannot copy the data in the middle of a transaction.');
+    const bytes = this.db.export();
+    this.db.run('PRAGMA foreign_keys = ON'); // export() resets pragmas
+    return Buffer.from(bytes);
+  }
+
+  // Swap in a restored database (after it is upgraded to this version) and write it to disk. On failure the old data stays.
+  replace(bytes) {
+    if (this.depth > 0) throw new Error('Cannot restore in the middle of a transaction.');
+    let db;
+    try {
+      db = new this.SQL.Database(bytes);
+      db.run('PRAGMA foreign_keys = ON');
+      db.exec('SELECT 1 FROM sqlite_master LIMIT 1');
+      migrate(db, { now: this.now });
+      db.run('PRAGMA foreign_keys = ON');
+    } catch (error) {
+      if (db) db.close();
+      throw new UserError(`That backup cannot be used: ${error.message}`, 'BAD_BACKUP');
+    }
+    const old = this.db;
+    this.db = db; this.dirty = true;
+    try { this.flush(); } catch (error) { this.db = old; db.close(); this.dirty = false; throw error; }
+    old.close();
   }
 
   close() {
