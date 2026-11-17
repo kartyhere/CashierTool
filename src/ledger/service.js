@@ -47,13 +47,25 @@ class LedgerService {
   today() { return localDay(this.store.now()); }
 
   // ---- guards ----
-  _openDay() {
+  // The day new entries go on. Blocked by a closed today, a PC clock set back, or an earlier day that was never closed
+  // (an admin can go on with a written reason, which is kept in the audit log).
+  _openDay(input) {
     const day = this.today();
     const last = this.repo.lastEntryDay();
     if (last && day < last) {
       throw new UserError(`This PC's date (${day}) is earlier than the last entry (${last}). Fix the Windows date and time, then try again.`, 'CLOCK_BEHIND');
     }
     if (this.repo.dayIsClosed(day)) throw new UserError('Today is closed. Reopen the day to add entries.', 'DAY_CLOSED');
+    const open = this.repo.daysWithEntries().filter((d) => d < day && !this.repo.dayIsClosed(d));
+    if (open.length) {
+      const reason = input && typeof input.skipEarlierReason === 'string' ? input.skipEarlierReason.trim() : '';
+      const s = this.auth.requireSession();
+      if (reason.length >= 3 && s.role === 'admin') {
+        this.repo.audit({ userId: s.userId, action: 'earlier_day_skipped', after: { open, reason } });
+      } else {
+        throw new UserError(`${open[0]} is not closed yet. Close that day first (Day close).`, 'EARLIER_OPEN', { day: open[0] });
+      }
+    }
     return day;
   }
 
@@ -86,6 +98,7 @@ class LedgerService {
     return {
       depositDue: due ? depositSuggest({ stock: this.repo.drawerCounts(), float: Number(this.repo.getSetting('deposit_float', '5000')) }).total : 0,
       day,
+      earlierOpen: this.repo.daysWithEntries().find((d) => d < day && !this.repo.dayIsClosed(d)) || null,
       hasOpening: this.repo.hasOpening(),
       clockBehind: Boolean(last && day < last),
       dayClosed: this.repo.dayIsClosed(day),
@@ -111,15 +124,16 @@ class LedgerService {
   }
 
   // ---- opening count ----
-  saveOpening({ pieces }) {
+  saveOpening(input) {
     const s = this.auth.requireSession();
+    const { pieces } = input || {};
     const p = normalizePieces(pieces);
     const amount = totalValue(p);
     if (amount < 1) throw new UserError('Enter at least one note or coin.');
     if (amount > this._maxAmount() * 10) throw new UserError('That total is too large. Check the counts.');
     return this.store.transaction(() => {
       if (this.repo.hasOpening()) throw new UserError('The opening count is already entered. To fix it, delete it from Entries and enter it again.', 'OPENING_DONE');
-      const day = this._openDay();
+      const day = this._openDay(input);
       const entryId = this.repo.insertEntry({ day, userId: s.userId, type: 'opening', cashDelta: amount, remark: 'Opening count' });
       this.repo.insertPieces(entryId, p);
       this.repo.audit({ userId: s.userId, action: 'opening_save', table: 'entries', rowId: entryId, after: { day, amount, pieces: p } });
@@ -142,7 +156,7 @@ class LedgerService {
     const reference = text(input.reference, 60, 'The reference');
 
     return this.store.transaction(() => {
-      const day = this._openDay();
+      const day = this._openDay(input);
       const e = { day, userId: s.userId, type: 'cash_in', source, cashDelta: amount, partyName, remark, reference };
       if (source === 'branch') {
         e.branchId = id(input.branchId, 'a branch');
@@ -233,3 +247,4 @@ class LedgerService {
 
 module.exports = { LedgerService, normalizePieces, localDay, text, id, SOURCES, LIST_ACTIONS };
 require('./voucher').install(LedgerService);
+require('./dayclose').install(LedgerService);

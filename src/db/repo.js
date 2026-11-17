@@ -75,6 +75,34 @@ function createRepo(store) {
         WHERE e.day = ? AND (? IS NULL OR e.type = ?) ORDER BY e.id`, [day, type, type]);
     },
 
+    // ---- days, day close, Tally ----
+    piecesAsOf(day) {
+      const out = {};
+      for (const r of store.all(`SELECT p.denom_id AS id, SUM(p.qty) AS qty FROM entry_pieces p JOIN entries e ON e.id = p.entry_id
+        WHERE e.deleted = 0 AND e.day <= ? GROUP BY p.denom_id`, [day])) out[r.id] = Number(r.qty);
+      return out;
+    },
+    daysWithEntries() { return store.all('SELECT DISTINCT day FROM entries WHERE deleted = 0 ORDER BY day').map((r) => r.day); },
+    getDayClose(day) { return store.get('SELECT * FROM day_closes WHERE day = ?', [day]); },
+    saveDayClose(row) {
+      store.run(`INSERT INTO day_closes (day, status, counted_json, expected_json, tally_balance, remark, closed_by, closed_at)
+        VALUES (?, 'closed', ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(day) DO UPDATE SET status = 'closed', counted_json = excluded.counted_json, expected_json = excluded.expected_json,
+          tally_balance = excluded.tally_balance, remark = excluded.remark, closed_by = excluded.closed_by, closed_at = excluded.closed_at`,
+      [row.day, JSON.stringify(row.counted), JSON.stringify(row.expected), row.tallyBalance, row.remark, row.userId, nowIso()]);
+    },
+    setDayReopened(day) { store.run("UPDATE day_closes SET status = 'reopened' WHERE day = ?", [day]); },
+    insertReopen({ day, userId, reason }) { store.run('INSERT INTO day_reopens (day, user_id, at, reason) VALUES (?, ?, ?, ?)', [day, userId, nowIso(), reason]); },
+    adjustEntries(day) { return store.all("SELECT id FROM entries WHERE day = ? AND type = 'count_adjust' AND deleted = 0", [day]).map((r) => r.id); },
+    markMorningChecked(day, userId) { store.run('UPDATE day_closes SET morning_checked_by = ?, morning_checked_at = ? WHERE day = ?', [userId, nowIso(), day]); },
+    insertTally({ day, userId, system, tally, counted, remark }) {
+      return store.run('INSERT INTO tally_checks (day, at, user_id, system_balance, tally_balance, counted_json, remark) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        [day, nowIso(), userId, system, tally, counted ? JSON.stringify(counted) : null, remark ?? null]).lastId;
+    },
+    tallyList(day) {
+      return store.all('SELECT t.*, u.username AS user_name FROM tally_checks t JOIN users u ON u.id = t.user_id WHERE t.day = ? ORDER BY t.id', [day]);
+    },
+
     // ---- people ----
     peopleAll() {
       return store.all(`SELECT p.id, p.name, p.department_id, d.name AS department, p.active,

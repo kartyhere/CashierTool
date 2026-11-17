@@ -17,6 +17,8 @@ const BACKGROUND = { dark: '#121316', light: '#f2f1ee' };
 
 // Test hooks. They only work in an unpackaged run (npm start), never in the built .exe.
 if (!app.isPackaged && process.env.CASHDESK_USER_DATA) app.setPath('userData', process.env.CASHDESK_USER_DATA);
+// Tests can move the app's clock (unpackaged runs only), to see a morning check without waiting for tomorrow.
+const clockOffset = !app.isPackaged ? Number(process.env.CASHDESK_CLOCK_OFFSET_MS || 0) || 0 : 0;
 const useTestKeystore = !app.isPackaged && process.env.CASHDESK_TEST_KEYSTORE === '1';
 
 // Stand-in for Windows account storage, for running the app on a machine that has none (tests on Linux).
@@ -40,7 +42,7 @@ async function openStore(userDataDir) {
   const initSqlJs = require('sql.js');
   const wasmBinary = fs.readFileSync(require.resolve('sql.js/dist/sql-wasm.wasm'));
   const SQL = await initSqlJs({ wasmBinary });
-  return Store.open({ SQL, vault });
+  return Store.open({ SQL, vault, now: () => new Date(Date.now() + clockOffset) });
 }
 
 function createWindow(repo) {

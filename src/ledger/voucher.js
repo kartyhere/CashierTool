@@ -124,7 +124,7 @@ function install(LedgerService) {
     if (paid < 0) throw new UserError('The notes received back are more than the notes given.');
 
     return this.store.transaction(() => {
-      const day = this._openDay();
+      const day = this._openDay(input);
       const person = this.repo.personGet(input.personId);
       if (!person || !person.active) throw new UserError('Choose a person who is in the list.');
       for (const l of lines) {
@@ -170,7 +170,7 @@ function install(LedgerService) {
     const sign = input.direction === 'pay' ? -1 : 1;
 
     return this.store.transaction(() => {
-      const day = this._openDay();
+      const day = this._openDay(input);
       const person = this.repo.personGet(input.personId);
       if (!person) throw new UserError('That person was not found.');
       const counts = this.repo.drawerCounts();
@@ -205,7 +205,7 @@ function install(LedgerService) {
     const reference = text(input.reference, 60, 'The reference');
     const remark = text(input.remark, 200, 'The remark');
     return this.store.transaction(() => {
-      const day = this._openDay();
+      const day = this._openDay(input);
       const bank = this.repo.listGet('bank_accounts', input.bankAccountId);
       if (!bank || !bank.active) throw new UserError('That bank account is not available.');
       const counts = this.repo.drawerCounts();
@@ -232,7 +232,7 @@ function install(LedgerService) {
     if (totalValue(inn) !== amount) throw new UserError(`Out is ₹${amount} but in is ₹${totalValue(inn)}. They must be equal.`);
     const remark = text(input.remark, 200, 'The remark');
     return this.store.transaction(() => {
-      const day = this._openDay();
+      const day = this._openDay(input);
       const counts = this.repo.drawerCounts();
       const net = {};
       for (const d of DENOMS) {

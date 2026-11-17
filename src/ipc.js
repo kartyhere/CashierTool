@@ -72,6 +72,14 @@ function registerIpc({ ipcMain, guard, auth, ledger, repo, store, appInfo, onThe
   handle('deposit.suggest', 'unlocked', () => ledger.suggestDeposit());
   handle('deposit.save', 'unlocked', (p) => ledger.saveDeposit(p));
   handle('exchange.save', 'unlocked', (p) => ledger.saveExchange(p));
+  handle('tally.check', 'unlocked', (p) => ledger.tallyCheck(p));
+  handle('tally.list', 'unlocked', (p) => ledger.tallyList(p));
+  handle('day.info', 'unlocked', (p) => ledger.dayInfo(p));
+  handle('day.close', 'unlocked', (p) => ledger.closeDay(p));
+  handle('day.reopen', 'unlocked', (p) => ledger.reopenDay(p));
+  handle('morning.status', 'unlocked', () => ledger.morningStatus());
+  handle('morning.done', 'unlocked', (p) => ledger.morningDone(p));
+  handle('morning.snooze', 'unlocked', () => ledger.morningSnooze());
   handle('lists.get', 'unlocked', () => ledger.lists());
   handle('lists.save', 'unlocked', (p) => ledger.saveListItem(p));
 }

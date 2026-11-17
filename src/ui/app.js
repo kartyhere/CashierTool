@@ -3,7 +3,22 @@
 (function () {
   const { h } = window.CashDeskDom;
   const Keys = window.CashDeskKeys;
-  const api = window.cashdesk;
+  const raw = window.cashdesk;
+  // Saving on a new day while an earlier day is still open: an admin can go on by giving a reason, anyone else is told to close it.
+  const guarded = (fn) => async (data) => {
+    try { return await fn(data); } catch (e) {
+      if (e.code !== 'EARLIER_OPEN' || !session || session.role !== 'admin') throw e;
+      const reason = await promptDialog({ title: 'An earlier day is not closed', label: `${e.message} Reason to go on anyway (admin only):` });
+      if (!reason || reason.trim().length < 3) throw e;
+      return fn({ ...data, skipEarlierReason: reason });
+    }
+  };
+  const api = {
+    ...raw,
+    cashIn: { ...raw.cashIn, save: guarded(raw.cashIn.save) }, voucher: { ...raw.voucher, save: guarded(raw.voucher.save) },
+    deposit: { ...raw.deposit, save: guarded(raw.deposit.save) }, exchange: { ...raw.exchange, save: guarded(raw.exchange.save) },
+    settle: { ...raw.settle, save: guarded(raw.settle.save) },
+  };
   const root = document.getElementById('app');
   const toastEl = document.getElementById('toast');
 
@@ -191,13 +206,14 @@
   // [key, label, function key, screen name or null (arrives in a later phase)]
   const MENU = [
     ['V', 'Voucher', 'F5', 'voucher'], ['I', 'Cash in', 'F6', 'cashin'], ['D', 'Bank deposit', 'F4', 'deposit'], ['X', 'Exchange', '', 'exchange'],
-    ['T', 'Tally check', 'Ctrl+T', null], ['E', 'Entries', '', 'entries'], ['P', 'People', '', 'people'], ['C', 'Day close', '', null],
+    ['T', 'Tally check', 'Ctrl+T', 'tally'], ['E', 'Entries', '', 'entries'], ['P', 'People', '', 'people'], ['C', 'Day close', '', 'dayclose'],
     ['R', 'Reports', '', null], ['S', 'Settings', '', 'lists'],
   ];
 
   function enterGateway(user) {
     session = user; locked = false;
     gateway();
+    setTimeout(checkMorning, 600);
   }
 
   function open(screen) { Screens[screen].open(); }
@@ -214,6 +230,10 @@
     const side = h('div', { class: 'dash' });
     if (dash) {
       if (dash.clockBehind) side.append(h('div', { class: 'banner bad' }, "This PC's date is earlier than the last entry. Fix the Windows date and time before adding entries."));
+      if (dash.earlierOpen) {
+        side.append(h('div', { class: 'banner bad' }, h('span', {}, `${dash.earlierOpen} is not closed yet. Close it before new entries.`),
+          h('button', { type: 'button', on: { click: () => open('dayclose') } }, 'Day close (C)')));
+      }
       if (dash.depositDue) {
         side.append(h('div', { class: 'banner' }, h('span', {}, `Cash is ${F.inr(dash.drawer.total)}. A bank deposit of about ${F.inr(dash.depositDue)} is due.`),
           h('button', { type: 'button', on: { click: () => open('deposit') } }, 'Deposit (D)')));
@@ -261,6 +281,63 @@
     try { await api.auth.signOut(); } catch (e) { /* already signed out */ }
     session = null; signInScreen();
   }
+
+  // ---- Morning check: from 9:15 the app asks for Tally's balance for the last working day, and again every 30 minutes ----
+  let morningOpen = false;
+  function morningDialog(st) {
+    return new Promise((resolve) => {
+      const input = h('input', { type: 'text', inputmode: 'numeric', autocomplete: 'off', 'aria-label': 'Tally closing balance' });
+      input.addEventListener('input', () => { input.value = F.digitsOnly(input.value).slice(0, 12); });
+      const save = h('button', { class: 'primary', type: 'button' }, 'Save');
+      const later = h('button', { type: 'button' }, 'Later');
+      const error = h('div', { class: 'error', role: 'alert' });
+      const overlay = h('div', { class: 'overlay dim' }, h('div', { class: 'block dialog' },
+        h('h2', {}, 'Morning check'), h('p', {}, `Last working day: ${st.lastDay}${st.closedDay ? ' (closed, counted)' : ' (not closed)'}. Compare with Tally.`),
+        h('div', { class: 'lines' }, [['Opening', st.opening], ['Receipts', st.receipts], ['Payments and deposits', st.outgo], ['Closing cash', st.closing]].map(([k, v]) => h('div', {}, h('span', {}, k), h('span', {}, F.inr(v))))),
+        h('label', { class: 'field' }, h('span', {}, 'Tally closing balance (₹)'), input), error, h('div', { class: 'row card' }, save, later)));
+      const previous = document.activeElement;
+      let done = false;
+      function finish() { if (done) return; done = true; dialogs.delete(cancel); Keys.setModal(null); overlay.remove(); if (previous && previous.focus && document.contains(previous)) previous.focus(); resolve(); }
+      const cancel = () => { api.morning.snooze().catch(() => {}); finish(); };
+      dialogs.add(cancel);
+      async function submit() {
+        if (!input.value) { error.textContent = 'Enter the Tally balance.'; return; }
+        try {
+          const r = await api.morning.done({ tallyBalance: Number(input.value) });
+          toast(r.difference === 0 ? 'Matches Tally' : `App is ${F.inr(Math.abs(r.difference))} ${r.difference > 0 ? 'more' : 'less'} than Tally`);
+          finish();
+        } catch (e) { error.textContent = e.message; }
+      }
+      save.addEventListener('click', submit);
+      later.addEventListener('click', () => { api.morning.snooze().catch(() => {}); finish(); });
+      document.body.append(overlay);
+      input.focus();
+      Keys.setModal({ onKey(name) {
+        if (name === 'Enter' && document.activeElement === input) { submit(); return true; }
+        if (name === 'Escape') { api.morning.snooze().catch(() => {}); finish(); return true; }
+        return false;
+      } });
+    });
+  }
+  async function checkMorning() {
+    if (!session || locked || morningOpen || dialogs.size) return;
+    let st;
+    try { st = await api.morning.status(); } catch (e) { return; }
+    if (!st.due) return;
+    morningOpen = true;
+    try { await morningDialog(st); } finally { morningOpen = false; }
+  }
+  setInterval(checkMorning, 30000);
+
+  // Tally check from anywhere with Ctrl+T (not in the middle of a voucher).
+  Keys.setGlobals({
+    'Ctrl+T': () => {
+      if (!session || locked) return false;
+      if (Keys.isDirty()) { toast('Finish or leave this entry first (Esc), then press Ctrl+T'); return true; }
+      open('tally');
+      return true;
+    },
+  });
 
   window.CashDeskApp = {
     api, h, Keys, F, show, toast, gateway, confirmDialog, promptDialog, themeButton,

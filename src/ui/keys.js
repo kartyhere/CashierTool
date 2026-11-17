@@ -12,10 +12,12 @@
   const Nav = window.CashDeskNav;
   const { visible } = window.CashDeskDom;
 
-  const state = { screen: null, modal: null };
+  const state = { screen: null, modal: null, globals: {} };
 
   function setScreen(spec) { state.screen = spec; }
   function setModal(spec) { state.modal = spec; }
+  function setGlobals(map) { state.globals = map || {}; }
+  const isDirty = () => Boolean(state.screen && state.screen.dirty && state.screen.dirty());
 
   const fieldsIn = (root) => [...root.querySelectorAll('[data-field]')].filter(visible);
   const itemsIn = (menu) => [...menu.root.querySelectorAll(menu.items || '[data-menu-item]')].filter(visible);
@@ -41,6 +43,10 @@
     if (state.modal) {
       if (state.modal.onKey(name, event)) { event.preventDefault(); event.stopPropagation(); }
       return;
+    }
+    if (state.globals[name]) {
+      const r = state.globals[name](event);
+      if (r !== false) { event.preventDefault(); return; }
     }
     const screen = state.screen;
     if (!screen) return;
@@ -76,5 +82,5 @@
 
   document.addEventListener('keydown', onKeyDown, true);
 
-  window.CashDeskKeys = { setScreen, setModal, focusFirst };
+  window.CashDeskKeys = { setScreen, setModal, setGlobals, isDirty, focusFirst };
 })();

@@ -1,5 +1,13 @@
 # Cash Desk changes
 
+## 0.5.0 — Phase 4: Tally check, morning check, day close
+- Tally check (T or Ctrl+T from any screen, except in the middle of a voucher): enter Tally's cash balance, optionally count the drawer. Shows the difference (app − Tally) and keeps a list of today's checks.
+- Morning check: from 09:15 a pop-up shows the last working day (opening, receipts, payments and deposits, closing) and asks for Tally's closing balance. Later or Esc asks again after 30 minutes.
+- Day close (C): count each note and coin against the books, add Tally's balance and a remark, close. A difference needs a second confirmation and is recorded as an adjustment entry, so the drawer matches the count. A closed day takes no new entries. Alt+E fills the counts from the books.
+- Admin can reopen a closed day (Alt+R, a reason is required and logged); the day's adjustment is cancelled.
+- Close the earlier day first: new entries on a later day are refused while an earlier day is open. An admin can go on with a written reason, which is logged. The Gateway shows a warning.
+- Fixed (affects 0.2.0 to 0.4.0): "Save anyway" prompts (bank below zero, voucher over the limit) never appeared in the real app because the window bridge dropped the error code. It now keeps it.
+
 ## 0.4.0 — Phase 3: bank deposit and exchange
 - Bank deposit (F4 or D): choose the bank, the notes are suggested (₹500, ₹200, ₹100 only, largest first, never coins, the drawer keeps at least the ₹5,000 float) and can be changed. Reference number and remark are optional. Cash goes down, the bank balance goes up, and the day's Deposits figure moves.
 - The Gateway shows a deposit banner when cash reaches ₹5,00,000 and it is past 12:00, with the suggested amount.

@@ -310,6 +310,7 @@
     A.show(node);
     Keys.setScreen({
       root: node,
+      dirty: () => Boolean(st.person),
       onEsc: async () => {
         if (st.person && !await A.confirmDialog({ title: 'Leave this voucher?', text: 'Nothing has been saved.', yesLabel: 'Leave' })) return;
         A.gateway();

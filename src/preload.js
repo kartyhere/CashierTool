@@ -6,8 +6,8 @@ const { contextBridge, ipcRenderer } = require('electron');
 async function call(channel, payload) {
   const reply = await ipcRenderer.invoke(channel, payload);
   if (reply && reply.ok) return reply.data;
-  const error = new Error((reply && reply.message) || 'The request failed.');
-  error.code = (reply && reply.code) || 'ERROR';
+  // contextBridge keeps only the message of a thrown Error, so the code travels on a plain object instead.
+  const error = { message: (reply && reply.message) || 'The request failed.', code: (reply && reply.code) || 'ERROR' };
   if (reply && reply.until) error.until = reply.until;
   if (reply && reply.triesLeft !== undefined) error.triesLeft = reply.triesLeft;
   throw error;
@@ -40,6 +40,9 @@ contextBridge.exposeInMainWorld('cashdesk', {
   settle: { save: (data) => call('settle.save', data) },
   deposit: { suggest: () => call('deposit.suggest'), save: (data) => call('deposit.save', data) },
   exchange: { save: (data) => call('exchange.save', data) },
+  tally: { check: (data) => call('tally.check', data), list: (day) => call('tally.list', day ? { day } : {}) },
+  day: { info: (day) => call('day.info', day ? { day } : {}), close: (data) => call('day.close', data), reopen: (day, reason) => call('day.reopen', { day, reason }) },
+  morning: { status: () => call('morning.status'), done: (data) => call('morning.done', data), snooze: () => call('morning.snooze') },
   lists: { get: () => call('lists.get'), save: (data) => call('lists.save', data) },
   // The main process locks the app after idle time and tells the page. Returns a function that stops listening.
   onLocked(callback) {
