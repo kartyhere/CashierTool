@@ -1,5 +1,8 @@
 # Cash Desk changes
 
+## 0.8.1 — Gateway selection is now easy to see
+- The tile you are on (keyboard or mouse) now turns into a solid block like the buttons do. Before, its text went pale on a pale background and looked faded, especially in Light.
+
 ## 0.8.0 — Phase 7: polish, roles check, README
 - Checked every screen in Dark and Light, including Tally check, Day close, Reports, Settings and Backup. README now has screenshots made from dummy data (`scripts/demo-shots.cjs`).
 - A cashier cannot open Settings, change users, restore a backup or reopen a day. This is enforced on the server and tested.

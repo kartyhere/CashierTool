@@ -72,6 +72,7 @@ input:focus { outline: none; border-color: var(--brand); background: var(--bg); 
 .menu button { display: flex; align-items: baseline; gap: 14px; text-align: left; border: 0; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); padding: 20px 18px; font-size: 13px; background: var(--raised); }
 .menu .num { color: var(--muted); font-size: 11px; min-width: 22px; }
 .menu .key { margin-left: auto; font-size: 11px; color: var(--muted); }
+.menu button:hover:not(:disabled), .menu button:focus-visible { background: var(--fill); color: var(--ink); }
 .menu button:hover:not(:disabled) .num, .menu button:focus-visible .num, .menu button:hover:not(:disabled) .key, .menu button:focus-visible .key { color: var(--ink); }
 .menu button.soon { color: var(--muted); }
 .menu button.soon:hover, .menu button.soon:focus-visible { background: var(--fill); color: var(--ink); }
