@@ -5,16 +5,18 @@ const { registerIpc } = require('../src/ipc');
 const { createGuard, assertPlain } = require('../src/security/guard');
 const { openApp } = require('./helpers.cjs');
 const path = require('node:path');
+const { pathToFileURL } = require('node:url');
+const ROOT = path.resolve('app', 'src');
+const pageUrl = (name) => pathToFileURL(path.join(ROOT, 'ui', name)).href;
 
 async function setup() {
   const a = await openApp();
   const handlers = {};
   const ipcMain = { handle: (ch, fn) => { handlers[ch] = fn; } };
   const logged = [];
-  const root = path.resolve('/app/src');
-  const guard = createGuard({ appRoot: root });
+  const guard = createGuard({ appRoot: ROOT });
   registerIpc({ ipcMain, guard, auth: a.auth, repo: a.repo, store: a.store, appInfo: { name: 'Cash Desk', version: '0.1.0' }, log: (e) => logged.push(e) });
-  const frame = { url: 'file:///app/src/ui/index.html' };
+  const frame = { url: pageUrl('index.html') };
   const sender = { mainFrame: frame, isDestroyed: () => false };
   const good = { sender, senderFrame: frame };
   return { a, handlers, logged, good, sender, call: (ch, p, ev = good) => handlers[ch](ev, p) };
@@ -33,10 +35,10 @@ test('envelopes, and sign-in required for guarded channels', async () => {
 });
 test('a foreign frame or page is refused', async () => {
   const t = await setup();
-  const otherFrame = { url: 'file:///app/src/ui/other.html' };
+  const otherFrame = { url: pageUrl('other.html') };
   const r = await t.call('app.info', undefined, { sender: { mainFrame: otherFrame, isDestroyed: () => false }, senderFrame: otherFrame });
   assert.equal(r.ok, false);
-  const sub = { url: 'file:///app/src/ui/index.html' };
+  const sub = { url: pageUrl('index.html') };
   const r2 = await t.call('app.info', undefined, { sender: { mainFrame: {}, isDestroyed: () => false }, senderFrame: sub });
   assert.equal(r2.ok, false);
   const r3 = await t.call('app.info', undefined, { sender: { mainFrame: { url: 'https://evil.test/' }, isDestroyed: () => false }, senderFrame: { url: 'https://evil.test/' } });
