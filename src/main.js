@@ -9,6 +9,7 @@ const { createGuard } = require('./security/guard');
 const { Store } = require('./db/store');
 const { createRepo } = require('./db/repo');
 const { AuthService } = require('./auth/service');
+const { LedgerService } = require('./ledger/service');
 const { registerIpc } = require('./ipc');
 
 const APP_ID = 'com.karthik.cashdesk';
@@ -93,10 +94,11 @@ async function boot() {
   }
   const repo = createRepo(store);
   const auth = new AuthService({ store, repo });
+  const ledger = new LedgerService({ store, repo, auth });
 
   nativeTheme.themeSource = repo.getSetting('theme', 'dark');
   registerIpc({
-    ipcMain, guard, auth, repo, store,
+    ipcMain, guard, auth, ledger, repo, store,
     appInfo: { name: app.getName(), version: app.getVersion() },
     onThemeChange: (theme) => { nativeTheme.themeSource = theme; },
   });

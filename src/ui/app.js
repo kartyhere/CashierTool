@@ -7,6 +7,9 @@
   const root = document.getElementById('app');
   const toastEl = document.getElementById('toast');
 
+  const F = window.CashDeskFormat;
+  const Screens = window.CashDeskScreens = {};
+  const dialogs = new Set();   // open dialogs; the lock screen closes them
   let session = null;     // { username, role } once signed in
   let locked = false;
   let toastTimer = null;
@@ -16,7 +19,7 @@
     toastEl.textContent = message;
     toastEl.hidden = false;
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => { toastEl.hidden = true; }, 2500);
+    toastTimer = setTimeout(() => { toastEl.hidden = true; }, Math.min(9000, 2500 + message.length * 40));
   }
 
   function setTheme(theme) { document.documentElement.dataset.theme = theme; }
@@ -110,11 +113,86 @@
 
   const withWait = (e) => e; // the main process already words the wait ("Locked for 1 minute")
 
+  // ---- Dialogs ----------------------------------------------------------------------------------------------
+  // Yes / No box. lines: [[label, value], ...] shown under the title. Y or Enter on Yes, N or Esc to cancel.
+  function confirmDialog({ title, text, lines = [], yesLabel = 'Yes' }) {
+    return new Promise((resolve) => {
+      const yes = h('button', { class: 'primary', type: 'button' }, yesLabel);
+      const no = h('button', { type: 'button' }, 'No');
+      const overlay = h('div', { class: 'overlay dim' }, h('div', { class: 'block dialog' },
+        h('h2', {}, title), text ? h('p', {}, text) : null,
+        lines.length ? h('div', { class: 'lines' }, lines.map(([k, v]) => h('div', {}, h('span', {}, k), h('span', {}, v)))) : null,
+        h('div', { class: 'row card' }, yes, no)));
+      const previous = document.activeElement;
+      let done = false;
+      function finish(answer) {
+        if (done) return;
+        done = true;
+        dialogs.delete(cancel);
+        Keys.setModal(null);
+        overlay.remove();
+        if (previous && previous.focus && document.contains(previous)) previous.focus();
+        resolve(answer);
+      }
+      const cancel = () => finish(false);
+      dialogs.add(cancel);
+      yes.addEventListener('click', () => finish(true));
+      no.addEventListener('click', () => finish(false));
+      document.body.append(overlay);
+      yes.focus();
+      Keys.setModal({
+        onKey(name) {
+          if (name === 'Y') { finish(true); return true; }
+          if (name === 'N' || name === 'Escape') { finish(false); return true; }
+          if (name === 'ArrowLeft' || name === 'ArrowRight') { (document.activeElement === yes ? no : yes).focus(); return true; }
+          return false; // Enter and Tab act on the focused button
+        },
+      });
+    });
+  }
+
+  // One-line text box. Resolves with the text, or null when cancelled.
+  function promptDialog({ title, label, value = '', digits = false }) {
+    return new Promise((resolve) => {
+      const input = h('input', { type: 'text', autocomplete: 'off', value, inputmode: digits ? 'numeric' : null });
+      if (digits) input.addEventListener('input', () => { input.value = F.digitsOnly(input.value).slice(0, 12); });
+      const ok = h('button', { class: 'primary', type: 'button' }, 'Save');
+      const no = h('button', { type: 'button' }, 'Cancel');
+      const overlay = h('div', { class: 'overlay dim' }, h('div', { class: 'block dialog' }, h('h2', {}, title),
+        h('label', { class: 'field' }, h('span', {}, label), input), h('div', { class: 'row card' }, ok, no)));
+      const previous = document.activeElement;
+      let done = false;
+      function finish(answer) {
+        if (done) return;
+        done = true;
+        dialogs.delete(cancel);
+        Keys.setModal(null);
+        overlay.remove();
+        if (previous && previous.focus && document.contains(previous)) previous.focus();
+        resolve(answer);
+      }
+      const cancel = () => finish(null);
+      dialogs.add(cancel);
+      ok.addEventListener('click', () => finish(input.value));
+      no.addEventListener('click', () => finish(null));
+      document.body.append(overlay);
+      input.focus(); input.select();
+      Keys.setModal({
+        onKey(name) {
+          if (name === 'Escape') { finish(null); return true; }
+          if (name === 'Enter' && document.activeElement === input) { finish(input.value); return true; }
+          return false;
+        },
+      });
+    });
+  }
+
   // ---- Gateway ----------------------------------------------------------------------------------------------
+  // [key, label, function key, screen name or null (arrives in a later phase)]
   const MENU = [
-    ['V', 'Voucher', 'F5', 2], ['I', 'Cash in', 'F6', 2], ['D', 'Bank deposit', 'F4', 3], ['X', 'Exchange', '', 3],
-    ['T', 'Tally check', 'Ctrl+T', 4], ['E', 'Entries', '', 2], ['P', 'People', '', 2], ['C', 'Day close', '', 4],
-    ['R', 'Reports', '', 5], ['S', 'Settings', '', 6],
+    ['V', 'Voucher', 'F5', null], ['I', 'Cash in', 'F6', 'cashin'], ['D', 'Bank deposit', 'F4', null], ['X', 'Exchange', '', null],
+    ['T', 'Tally check', 'Ctrl+T', null], ['E', 'Entries', '', 'entries'], ['P', 'People', '', null], ['C', 'Day close', '', null],
+    ['R', 'Reports', '', null], ['S', 'Settings', '', 'lists'],
   ];
 
   function enterGateway(user) {
@@ -122,12 +200,37 @@
     gateway();
   }
 
-  function gateway() {
+  function open(screen) { Screens[screen].open(); }
+
+  async function gateway() {
+    let dash = null;
+    try { dash = await api.dashboard.get(); } catch (e) { toast(e.message); }
     const menu = h('div', { class: 'menu', role: 'menu' },
-      MENU.map(([key, label, fkey, phase], i) => h('button', {
-        type: 'button', class: 'soon', role: 'menuitem', data: { menuItem: '1', key },
-        on: { click: () => toast(`${label} arrives in a later phase`) },
+      MENU.map(([key, label, fkey, screen], i) => h('button', {
+        type: 'button', class: screen ? '' : 'soon', role: 'menuitem', data: { menuItem: '1', key },
+        on: { click: () => (screen ? open(screen) : toast(`${label} arrives in a later phase`)) },
       }, h('span', { class: 'num' }, String(i + 1).padStart(2, '0')), label, h('span', { class: 'key' }, fkey || key))));
+
+    const side = h('div', { class: 'dash' });
+    if (dash) {
+      if (dash.clockBehind) side.append(h('div', { class: 'banner bad' }, "This PC's date is earlier than the last entry. Fix the Windows date and time before adding entries."));
+      if (!dash.hasOpening) {
+        side.append(h('div', { class: 'banner' }, h('span', {}, 'The drawer has no opening count yet.'),
+          h('button', { type: 'button', on: { click: () => open('opening') } }, 'Enter it (O)')));
+      }
+      const f = dash.figures;
+      side.append(
+        h('div', { class: 'block panel' }, h('h3', {}, `Drawer now · ${dash.day}`),
+          h('table', {},
+            h('thead', {}, h('tr', {}, h('th', {}, 'Note / coin'), h('th', { class: 'n' }, 'Count'), h('th', { class: 'n' }, 'Amount'))),
+            h('tbody', {}, dash.drawer.rows.map((r) => h('tr', {}, h('td', {}, r.label), h('td', { class: 'n' }, String(r.qty)), h('td', { class: 'n' }, F.inr(r.amount)))),
+              h('tr', { class: 'total' }, h('td', {}, 'Total'), h('td', {}), h('td', { class: 'n' }, F.inr(dash.drawer.total)))))),
+        h('div', { class: 'figures' },
+          [['Opening', f.opening], ['Receipts', f.receipts], ['Payments', f.payments], ['Deposits', f.deposits], ['Closing', f.closing]]
+            .map(([k, v]) => h('div', {}, h('span', {}, k), h('b', {}, F.inr(v))))),
+        dash.banks.length ? h('div', { class: 'figures' }, dash.banks.map((b) => h('div', {}, h('span', {}, b.name), h('b', {}, F.inr(b.balance))))) : null);
+    }
+
     const node = h('div', { class: 'screen' },
       h('div', { class: 'topbar' },
         h('span', { class: 'who' }, `Signed in: ${session.username}`),
@@ -135,39 +238,30 @@
           h('button', { type: 'button', on: { click: lockNow } }, 'Lock'),
           themeButton(),
           h('button', { type: 'button', on: { click: askSignOut } }, 'Sign out'))),
-      h('div', { class: 'gateway' }, h('h1', {}, 'Gateway'), menu),
-      h('div', { class: 'statusbar' }, h('span', {}, 'Enter open'), h('span', {}, 'Letter jump'), h('span', {}, 'Esc sign out'), h('span', {}, 'Ctrl+L lock')));
+      h('div', { class: 'gateway' }, h('h1', {}, 'Gateway'), menu, side),
+      h('div', { class: 'statusbar' }, h('span', {}, 'Enter open'), h('span', {}, 'Letter jump'), h('span', {}, 'F6 cash in'), h('span', {}, 'Esc sign out'), h('span', {}, 'Ctrl+L lock')));
     show(node);
-    Keys.setScreen({
-      root: node, menu: { root: node },
-      onEsc: askSignOut,
-      hotkeys: { 'Ctrl+L': lockNow, 'F5': () => toast('Voucher arrives in a later phase'), 'F6': () => toast('Cash in arrives in a later phase'), 'F4': () => toast('Bank deposit arrives in a later phase') },
-    });
+    const hotkeys = {
+      'Ctrl+L': lockNow,
+      F5: () => toast('Voucher arrives in a later phase'),
+      F4: () => toast('Bank deposit arrives in a later phase'),
+      F6: () => open('cashin'),
+    };
+    if (dash && !dash.hasOpening) hotkeys.O = () => open('opening');
+    Keys.setScreen({ root: node, menu: { root: node }, onEsc: askSignOut, hotkeys });
     node.querySelector('[data-menu-item]').focus();
   }
 
-  function askSignOut() {
-    const yes = h('button', { class: 'primary', type: 'button', on: { click: close } }, 'Yes');
-    const no = h('button', { type: 'button', on: { click: () => closeModal() } }, 'No');
-    const overlay = h('div', { class: 'overlay dim' }, h('div', { class: 'block dialog' }, h('h2', {}, 'Sign out?'), h('p', {}, 'Press Y to sign out, N to stay.'), h('div', { class: 'row card' }, yes, no)));
-    const previous = document.activeElement;
-    document.body.append(overlay);
-    yes.focus();
-    function closeModal() { Keys.setModal(null); overlay.remove(); if (previous && previous.focus) previous.focus(); }
-    async function close() {
-      Keys.setModal(null); overlay.remove();
-      try { await api.auth.signOut(); } catch (e) { /* already signed out */ }
-      session = null; signInScreen();
-    }
-    Keys.setModal({
-      onKey(name) {
-        if (name === 'Y') { close(); return true; }
-        if (name === 'N' || name === 'Escape') { closeModal(); return true; }
-        if (name === 'ArrowLeft' || name === 'ArrowRight') { (document.activeElement === yes ? no : yes).focus(); return true; }
-        return false; // Enter/Tab fall through to the focused button
-      },
-    });
+  async function askSignOut() {
+    if (!await confirmDialog({ title: 'Sign out?', text: 'Press Y to sign out, N to stay.' })) return;
+    try { await api.auth.signOut(); } catch (e) { /* already signed out */ }
+    session = null; signInScreen();
   }
+
+  window.CashDeskApp = {
+    api, h, Keys, F, show, toast, gateway, confirmDialog, promptDialog, themeButton,
+    session: () => session,
+  };
 
   // ---- Lock screen ------------------------------------------------------------------------------------------
   let lockOverlay = null;
@@ -176,6 +270,7 @@
   function showLock() {
     if (locked || !session) return;
     locked = true;
+    for (const cancel of [...dialogs]) cancel();
     const error = h('div', { class: 'error', role: 'alert' });
     const input = h('input', { type: 'password', autocomplete: 'off', data: { field: '1' } });
     const unlockBtn = h('button', { class: 'primary', type: 'button' }, 'Unlock');

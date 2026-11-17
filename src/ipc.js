@@ -24,7 +24,7 @@ function describe(error, log) {
   return { ok: false, code: 'ERROR', message: 'Something went wrong. Nothing was changed.' };
 }
 
-function registerIpc({ ipcMain, guard, auth, repo, store, appInfo, onThemeChange = () => {}, log = (e) => console.error(e) }) {
+function registerIpc({ ipcMain, guard, auth, ledger, repo, store, appInfo, onThemeChange = () => {}, log = (e) => console.error(e) }) {
   function handle(channel, access, fn) {
     ipcMain.handle(channel, async (event, payload) => {
       try {
@@ -57,6 +57,14 @@ function registerIpc({ ipcMain, guard, auth, repo, store, appInfo, onThemeChange
   handle('auth.unlock', 'session', (p) => { auth.unlock(p); return {}; });
   handle('auth.changePassword', 'unlocked', (p) => { auth.changePassword(p); return {}; });
   handle('auth.touch', 'session', () => { auth.touch(); return {}; });
+
+  handle('dashboard.get', 'unlocked', () => ledger.dashboard());
+  handle('opening.save', 'unlocked', (p) => ledger.saveOpening(p));
+  handle('cashin.save', 'unlocked', (p) => ledger.saveCashIn(p));
+  handle('entries.list', 'unlocked', (p) => ledger.entries(p));
+  handle('entry.delete', 'unlocked', (p) => ledger.deleteEntry(p));
+  handle('lists.get', 'unlocked', () => ledger.lists());
+  handle('lists.save', 'unlocked', (p) => ledger.saveListItem(p));
 }
 
 module.exports = { registerIpc, THEMES };

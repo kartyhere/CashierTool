@@ -7,6 +7,7 @@ const path = require('node:path');
 
 const MIGRATIONS = [
   { version: 1, name: 'baseline schema', file: 'schema.sql' },
+  { version: 2, name: 'starter lists', file: 'migrations/002_seed_lists.sql' },
 ];
 
 const LATEST = MIGRATIONS[MIGRATIONS.length - 1].version;

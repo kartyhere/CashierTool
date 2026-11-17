@@ -85,3 +85,47 @@ input:focus { outline: none; border-color: var(--brand); background: var(--bg); 
 .dialog p { color: var(--muted); margin-bottom: 18px; }
 
 #toast { position: fixed; bottom: 36px; left: 0; right: 0; margin: 0 auto; width: max-content; max-width: 90vw; background: var(--fill); color: var(--ink); padding: 10px 16px; font: 500 12px 'Geist Mono', monospace; text-transform: uppercase; letter-spacing: 0.06em; z-index: 20; }
+
+/* ---- Phase 2: forms, tables, dashboard ---- */
+select { width: 100%; background: var(--sunken); color: var(--text); border: 1px solid var(--line-strong); padding: 11px 12px; font: 400 15px 'Inter', sans-serif; }
+select:focus { outline: none; border-color: var(--brand); background: var(--bg); }
+.page { flex: 1; overflow: auto; padding: 24px; display: grid; gap: 20px; align-content: start; }
+.page h1 { font-size: 32px; }
+.cols { display: grid; grid-template-columns: 1fr; gap: 20px; align-items: start; }
+@media (min-width: 1000px) { .cols { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
+.panel { padding: 18px; }
+.panel h3 { font: 500 11px 'Geist Mono', monospace; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin-bottom: 12px; }
+table { width: 100%; border-collapse: collapse; }
+th { text-align: left; font-weight: 500; font-size: 11px; color: var(--muted); padding: 6px 8px; border-bottom: 1px solid var(--line-strong); }
+td { padding: 6px 8px; border-bottom: 1px solid var(--line); font-size: 14px; }
+th.n, td.n { text-align: right; font-variant-numeric: tabular-nums; }
+tr.total td { border-top: 1px solid var(--line-strong); border-bottom: 0; font-weight: 600; }
+.grid input { text-align: right; padding: 5px 8px; font-size: 14px; width: 110px; }
+.grid td.amt { color: var(--muted); }
+.figures { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 0; border: 1px solid var(--line); }
+.figures div { padding: 10px 12px; border-right: 1px solid var(--line); }
+.figures div:last-child { border-right: 0; }
+.figures span { display: block; font: 400 10px 'Geist Mono', monospace; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+.figures b { font: 560 18px 'Archivo', sans-serif; letter-spacing: -0.01em; font-variant-numeric: tabular-nums; }
+.banner { border: 1px solid var(--warn); color: var(--warn); padding: 12px 14px; display: flex; gap: 14px; align-items: center; justify-content: space-between; }
+.banner.bad { border-color: var(--danger); color: var(--danger); }
+.dash { display: grid; gap: 18px; align-content: start; }
+@media (min-width: 1100px) { .gateway { grid-template-columns: minmax(0, 1fr) 400px; } .gateway > h1 { grid-column: 1 / -1; } }
+tr[tabindex] { outline: none; cursor: default; }
+tr[tabindex]:focus td, tr[tabindex]:hover td { background: var(--fill); color: var(--ink); border-color: var(--fill); }
+tr.gone td { color: var(--muted); text-decoration: line-through; }
+.tag { display: inline-block; border: 1px solid var(--line-strong); padding: 1px 6px; font-size: 10px; }
+.minus { color: var(--danger); }
+tr[tabindex]:focus .minus, tr[tabindex]:hover .minus { color: var(--ink); }
+.lede { color: var(--muted); font-size: 13px; }
+.tabs { display: flex; gap: 0; border: 1px solid var(--line); width: max-content; }
+.tabs button { border: 0; border-right: 1px solid var(--line); }
+.tabs button:last-child { border-right: 0; }
+.tabs button.on { background: var(--fill); color: var(--ink); }
+.dialog .lines { margin-bottom: 18px; display: grid; gap: 4px; }
+.dialog .lines div { display: flex; justify-content: space-between; gap: 16px; font-size: 14px; }
+.dialog .lines span:first-child { color: var(--muted); }
+.gateway { align-items: start; }
+.menu { align-content: start; grid-auto-rows: 64px; }
+.menu button { align-items: center; padding-top: 0; padding-bottom: 0; }
+.dash td { padding-top: 3px; padding-bottom: 3px; }

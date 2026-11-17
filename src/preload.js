@@ -31,6 +31,11 @@ contextBridge.exposeInMainWorld('cashdesk', {
     changePassword: (current, next) => call('auth.changePassword', { current, next }),
     touch: () => call('auth.touch'),
   },
+  dashboard: { get: () => call('dashboard.get') },
+  opening: { save: (pieces) => call('opening.save', { pieces }) },
+  cashIn: { save: (data) => call('cashin.save', data) },
+  entries: { list: (filter) => call('entries.list', filter || {}), delete: (id) => call('entry.delete', { id }) },
+  lists: { get: () => call('lists.get'), save: (data) => call('lists.save', data) },
   // The main process locks the app after idle time and tells the page. Returns a function that stops listening.
   onLocked(callback) {
     const listener = () => callback();
