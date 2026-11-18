@@ -4,11 +4,19 @@ const ExcelJS = require('exceljs');
 const { totalsRow } = require('./format');
 
 const NUM = '[>=10000000]##\\,##\\,##\\,##0;[>=100000]##\\,##\\,##0;##,##0';
+const NUM2 = '[>=10000000]##\\,##\\,##\\,##0.00;[>=100000]##\\,##\\,##0.00;##,##0.00';
 
 async function toXlsx(report, { generatedAt = new Date() } = {}) {
   const wb = new ExcelJS.Workbook();
   wb.creator = 'Cash Desk'; wb.created = generatedAt;
-  const ws = wb.addWorksheet(report.title.slice(0, 31), { views: [{ state: 'frozen', ySplit: 3 }] });
+  // A report is one sheet; a report with `sheets` (service payment) is one sheet each.
+  const sheets = report.sheets || [{ name: report.title, title: report.title, subtitle: report.subtitle, sections: report.sections }];
+  for (const sh of sheets) writeSheet(wb, sh);
+  return Buffer.from(await wb.xlsx.writeBuffer());
+}
+
+function writeSheet(wb, report) {
+  const ws = wb.addWorksheet(report.name.slice(0, 31), { views: [{ state: 'frozen', ySplit: 3 }] });
   ws.getCell('A1').value = report.title; ws.getCell('A1').font = { bold: true, size: 14 };
   ws.getCell('A2').value = `${report.subtitle}  ·  amounts in rupees`; ws.getCell('A2').font = { color: { argb: 'FF666666' } };
   let r = 4;
@@ -27,7 +35,8 @@ async function toXlsx(report, { generatedAt = new Date() } = {}) {
         const v = row[c.key];
         const x = ws.getCell(r, i + 1);
         if (v !== null && v !== undefined && v !== '') x.value = v;
-        if (c.kind !== 'text' && typeof v === 'number') x.numFmt = NUM;
+        if (c.kind !== 'text' && typeof v === 'number') x.numFmt = c.kind === 'money2' ? NUM2 : NUM;
+        else if (c.kind === 'text' && typeof v === 'string') x.numFmt = '@';       // account numbers etc. stay text
         if (bold) { x.font = { bold: true }; x.border = { top: { style: 'thin' } }; }
         grow(i, c.kind === 'text' ? v : (typeof v === 'number' ? v.toLocaleString('en-IN') : v));
       });
@@ -39,7 +48,6 @@ async function toXlsx(report, { generatedAt = new Date() } = {}) {
     r++;
   }
   widths.forEach((w, i) => { ws.getColumn(i + 1).width = w; });
-  return Buffer.from(await wb.xlsx.writeBuffer());
 }
 
 module.exports = { toXlsx };

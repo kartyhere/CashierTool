@@ -3,6 +3,7 @@
 const group = (n) => new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 }).format(n);
 function cell(col, value) {
   if (value === null || value === undefined || value === '') return '';
+  if (col.kind === 'money2') return typeof value === 'number' ? new Intl.NumberFormat('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value) : String(value);
   if (col.kind === 'money' || col.kind === 'int') return group(value);
   return String(value);
 }

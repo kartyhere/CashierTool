@@ -119,6 +119,14 @@ async function boot() {
       const r = await dialog.showOpenDialog(mainWindow, { title: 'Choose a Cash Desk backup file', defaultPath: folder, properties: ['openFile'], filters: [{ name: 'Cash Desk backup', extensions: ['cdbak'] }, { name: 'All files', extensions: ['*'] }] });
       return r.canceled || !r.filePaths.length ? null : r.filePaths[0];
     },
+    chooseExcelFile: async ({ which, folder }) => {
+      if (!app.isPackaged) { const f = which === 'parties' ? process.env.CASHDESK_PARTY_FILE : process.env.CASHDESK_FSC_FILE; if (f) return f; }   // tests
+      const r = await dialog.showOpenDialog(mainWindow, {
+        title: which === 'parties' ? 'Choose the party codes Excel file' : 'Choose the monthly service payment Excel file',
+        defaultPath: folder || app.getPath('documents'), properties: ['openFile'], filters: [{ name: 'Excel', extensions: ['xlsx'] }],
+      });
+      return r.canceled || !r.filePaths.length ? null : r.filePaths[0];
+    },
     afterRestore: () => setTimeout(() => { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.reload(); }, 400),
     chooseSavePath: async ({ defaultName, format, folder }) => {
       // Tests (unpackaged only) save into a folder instead of opening the Windows save box.

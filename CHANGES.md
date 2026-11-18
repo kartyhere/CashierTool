@@ -1,5 +1,15 @@
 # Cash Desk changes
 
+## 0.13.0 — Service payment (free service payment tool)
+- **New Gateway tile: Service payment (F).** Load the party codes Excel once (P), then each month choose the monthly Excel file (Enter). The report shows what to pay each bank account.
+- Finds the header row by itself, so rearranged columns, title rows and hidden columns (Tax_Amt) are fine. Party name is looked up from Service_parent in your party codes list.
+- Per invoice: Taxable = Lot amount − Tax amount; TDS = 2% of Taxable, always rounded UP to a whole rupee; To pay = Lot amount − TDS. The invoice number is the GST lot number. Status is not filtered.
+- Grouped by bank account number only (one party can have many accounts). Account numbers are kept as text, leading zeros kept; IFSC and bank name come from the rows.
+- Nothing is left behind: a row with no usable account number (or an account Excel has turned into 1.23E+11) is listed as NOT PAID, and a "Does it add up?" table reconciles every row of the file against the payment list.
+- Checks flagged: missing tax, bad or missing IFSC, same account with different IFSC, duplicate GST lot number, party code not found, and differences from the file's own TDS / Payable columns.
+- Alt+X saves Excel (two sheets: Pay by account, Invoices), Alt+P saves PDF.
+- Database upgrades to version 5 (party codes table; new table only).
+
 ## 0.12.0 — Split each voucher, edit the day's entries, restore from a file
 - **No limit on vouchers.** After each amount Enter adds the next box; Enter on an empty box, or typing 0, ends the list. The TOTAL (the amount to hand over) shows in large type from the first amount.
 - **Split per voucher.** The expense step now shows one section per voucher ("Voucher 2 of 3 · ₹143"). Each voucher's lines must add up to that voucher on its own. The payout, notes and balance still work on the combined total. Lines are saved with their voucher number.

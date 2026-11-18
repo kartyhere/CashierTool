@@ -10,6 +10,7 @@ const MIGRATIONS = [
   { version: 2, name: 'starter lists', file: 'migrations/002_seed_lists.sql' },
   { version: 3, name: 'entry flag', file: 'migrations/003_entry_flag.sql' },
   { version: 4, name: 'voucher splits and edit permission', file: 'migrations/004_voucher_splits.sql' },
+  { version: 5, name: 'party codes', file: 'migrations/005_party_codes.sql' },
 ];
 
 const LATEST = MIGRATIONS[MIGRATIONS.length - 1].version;

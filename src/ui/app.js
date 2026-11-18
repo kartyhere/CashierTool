@@ -221,7 +221,7 @@
   const MENU = [
     ['V', 'Voucher', 'F5', 'voucher'], ['I', 'Cash in', 'F6', 'cashin'], ['D', 'Bank deposit', 'F4', 'deposit'], ['X', 'Exchange', '', 'exchange'],
     ['T', 'Tally check', 'Ctrl+T', 'tally'], ['E', 'Entries', '', 'entries'], ['P', 'People', '', 'people'], ['C', 'Day close', '', 'dayclose'],
-    ['R', 'Reports', '', 'reports'], ['S', 'Settings', '', 'settings'],
+    ['R', 'Reports', '', 'reports'], ['F', 'Service payment', '', 'fsc'], ['S', 'Settings', '', 'settings'],
   ];
 
   function enterGateway(user) {

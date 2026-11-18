@@ -160,7 +160,7 @@ test('upgrade from version 2: the data stays and the flag column appears', async
   vault.write('cashdesk.db', Buffer.from(db.export()));
   const { Store } = require('../src/db/store');
   const store = Store.open({ SQL, vault });
-  assert.equal(store.get('SELECT MAX(version) AS v FROM migrations').v, 4);
+  assert.equal(store.get('SELECT MAX(version) AS v FROM migrations').v, 5);
   assert.equal(store.get('SELECT cash_delta, flag, parts_json FROM entries').cash_delta, 500);
   assert.equal(store.get('SELECT can_edit FROM users').can_edit, 1);
   assert.equal(store.all('SELECT * FROM expense_types').length, 7);

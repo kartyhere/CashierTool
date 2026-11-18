@@ -21,14 +21,14 @@ const focusedText = (page) => page.evaluate(() => (document.activeElement.textCo
 
   // one column: every tile has the same left edge, each below the last
   const boxes = await page.$$eval('.menu button', (b) => b.map((x) => { const r = x.getBoundingClientRect(); return { x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.width) }; }));
-  assert.equal(boxes.length, 10);
+  assert.equal(boxes.length, 11);
   assert.equal(new Set(boxes.map((b) => b.x)).size, 1, 'all tiles share one left edge');
   assert.ok(boxes.every((b, i) => i === 0 || b.y > boxes[i - 1].y), 'each tile is below the one before');
   assert.match(await focusedText(page), /VOUCHER|Voucher/i);
   await page.keyboard.press('ArrowDown'); assert.match(await focusedText(page), /Cash in/i);
   await page.keyboard.press('ArrowDown'); assert.match(await focusedText(page), /Bank deposit/i);
   await page.keyboard.press('ArrowUp'); await page.keyboard.press('ArrowUp'); await page.keyboard.press('ArrowUp');
-  assert.match(await focusedText(page), /Settings/i, 'Up from the first tile wraps to the last');
+  assert.match(await focusedText(page), /Settings/i, 'Up from the first tile wraps to the last');   // Settings is the last tile
   await shot(page, 'g1-gateway');
 
   // hint bar is bold

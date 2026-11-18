@@ -138,6 +138,8 @@ function createRepo(store) {
         WHERE l.entry_id = ? ORDER BY l.sort`, [entryId]);
     },
     // Vouchers saved without an expense split (to be split later), on days that are not closed yet.
+    partyCodes() { return store.all('SELECT code, name FROM party_codes ORDER BY code'); },
+    partyCodeUpsert(code, name, at) { store.run('INSERT INTO party_codes (code, name, updated_at) VALUES (?, ?, ?) ON CONFLICT(code) DO UPDATE SET name = excluded.name, updated_at = excluded.updated_at', [code, name, at]); },
     unsplitVouchers() {
       return store.all(`SELECT e.id, e.day FROM entries e WHERE e.type = 'voucher' AND e.deleted = 0
         AND NOT EXISTS (SELECT 1 FROM voucher_lines l WHERE l.entry_id = e.id)

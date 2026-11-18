@@ -24,7 +24,7 @@ function describe(error, log) {
   return { ok: false, code: 'ERROR', message: 'Something went wrong. Nothing was changed.' };
 }
 
-function registerIpc({ ipcMain, guard, auth, ledger, repo, store, appInfo, onThemeChange = () => {}, chooseSavePath = async () => null, chooseFolder = async () => null, chooseBackupFile = async () => null, backups = null, afterRestore = () => {}, log = (e) => console.error(e) }) {
+function registerIpc({ ipcMain, guard, auth, ledger, repo, store, appInfo, onThemeChange = () => {}, chooseSavePath = async () => null, chooseFolder = async () => null, chooseBackupFile = async () => null, chooseExcelFile = async () => null, backups = null, afterRestore = () => {}, log = (e) => console.error(e) }) {
   function handle(channel, access, fn) {
     ipcMain.handle(channel, async (event, payload) => {
       try {
@@ -97,6 +97,37 @@ function registerIpc({ ipcMain, guard, auth, ledger, repo, store, appInfo, onThe
     const bytes = format === 'pdf' ? require('./export/pdf').toPdf(report) : await require('./export/xlsx').toXlsx(report);
     require('node:fs').writeFileSync(target, bytes);
     store.transaction(() => repo.setSetting('export_folder', require('node:path').dirname(target)), { defer: true });
+    return { path: target };
+  });
+  // Free service payment. The Excel file is read here (the page never touches the file system); the report is kept here for export.
+  handle('fsc.parties', 'unlocked', () => ledger.fscPartyCodes());
+  handle('fsc.importParties', 'unlocked', async () => {
+    const file = await chooseExcelFile({ which: 'parties', folder: repo.getSetting('fsc_folder', null) });
+    if (!file) return { cancelled: true };
+    const sheets = await require('./fsc/excel').readWorkbook(file);
+    const withCodes = sheets.find((sh) => require('./core/fsc').parsePartyCodes(sh.rows).parties.size) || sheets[0];
+    const r = ledger.fscImportParties({ rows: withCodes ? withCodes.rows : [], fileName: require('node:path').basename(file) });
+    store.transaction(() => repo.setSetting('fsc_folder', require('node:path').dirname(file)), { defer: true });
+    return { ...r, file: require('node:path').basename(file) };
+  });
+  handle('fsc.run', 'unlocked', async () => {
+    const file = await chooseExcelFile({ which: 'month', folder: repo.getSetting('fsc_folder', null) });
+    if (!file) return { cancelled: true };
+    const { findHeader } = require('./core/fsc');
+    const sheets = await require('./fsc/excel').readWorkbook(file);
+    const sheet = sheets.find((sh) => !findHeader(sh.rows).missing.length) || sheets[0];
+    const r = ledger.fscRun({ rows: sheet ? sheet.rows : [], fileName: require('node:path').basename(file) });
+    store.transaction(() => repo.setSetting('fsc_folder', require('node:path').dirname(file)), { defer: true });
+    return r;
+  });
+  handle('fsc.export', 'unlocked', async (p) => {
+    const format = p.format;
+    if (format !== 'pdf' && format !== 'xlsx') throw new UserError('Choose PDF or Excel.');
+    const report = ledger.fscLastReport();
+    const target = await chooseSavePath({ defaultName: `${report.fileName}.${format}`, format, folder: repo.getSetting('fsc_folder', null) || repo.getSetting('export_folder', null) });
+    if (!target) return { cancelled: true };
+    const bytes = format === 'pdf' ? require('./export/pdf').toPdf(report) : await require('./export/xlsx').toXlsx(report);
+    require('node:fs').writeFileSync(target, bytes);
     return { path: target };
   });
   handle('settings.get', 'unlocked', () => ledger.settingsGet());

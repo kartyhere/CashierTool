@@ -252,3 +252,4 @@ require('./voucher').install(LedgerService);
 require('./dayclose').install(LedgerService);
 require('./reports').install(LedgerService);
 require('./settings').install(LedgerService);
+require('./fsc').install(LedgerService);

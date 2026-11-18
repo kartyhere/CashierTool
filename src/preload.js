@@ -46,6 +46,7 @@ contextBridge.exposeInMainWorld('cashdesk', {
   denominations: { list: () => call('denominations.list'), hide: (id, hidden) => call('denominations.hide', { id, hidden }) },
   backup: { status: () => call('backup.status'), setPassword: (password) => call('backup.setPassword', { password }), now: () => call('backup.now'),
     chooseFolder: () => call('backup.chooseFolder'), restore: (name, password) => call('backup.restore', { name, password }) },
+  fsc: { parties: () => call('fsc.parties'), importParties: () => call('fsc.importParties'), run: () => call('fsc.run'), export: (format) => call('fsc.export', { format }) },
   restore: { chooseFile: () => call('restore.chooseFile'), run: (password) => call('restore.run', { password }) },
   report: { list: () => call('report.list'), run: (data) => call('report.run', data), export: (data) => call('report.export', data) },
   day: { info: (day) => call('day.info', day ? { day } : {}), close: (data) => call('day.close', data), reopen: (day, reason) => call('day.reopen', { day, reason }) },

@@ -8,7 +8,8 @@
   const pad = (n) => String(n).padStart(2, '0');
   const dayOf = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
   const group = (n) => new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 }).format(n);
-  const show = (c, v) => (v === null || v === undefined || v === '' ? '' : (c.kind === 'text' ? String(v) : group(v)));
+  const group2 = (n) => new Intl.NumberFormat('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
+  const show = (c, v) => (v === null || v === undefined || v === '' ? '' : (c.kind === 'text' ? String(v) : (c.kind === 'money2' && typeof v === 'number' ? group2(v) : group(v))));
 
   function sectionNode(s) {
     const total = s.totals ? s.columns.map((c, i) => (s.totals[c.key] !== undefined ? s.totals[c.key] : (i === s.columns.findIndex((x) => s.totals[x.key] === undefined) ? 'Total' : ''))) : null;
@@ -20,6 +21,8 @@
             , total ? h('tr', { class: 'total' }, s.columns.map((c, i) => h('td', { class: c.kind === 'text' ? '' : 'n' }, show(c, total[i])))) : null))
         : h('p', { class: 'lede' }, 'Nothing to show for this period.'));
   }
+
+  window.CashDeskShared.sectionNode = sectionNode;          // the service payment screen draws its tables the same way
 
   async function open() {
     let reports, lists, people, today;
