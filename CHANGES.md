@@ -1,5 +1,8 @@
 # Cash Desk changes
 
+## 0.13.2 — Dealer remarks flagged
+- Service payment reads the "Service DLR Remarks" column. Every row with a remark is listed under "Things to look at" with its account number and the dealer's words, the remark is shown on the bank account line (DEALER REMARK) and next to the invoice in the detail table and Excel. The tool never edits an account number: you read the remark and decide.
+
 ## 0.13.1 — Party codes file
 - The party codes Excel is read by its headers "Selling_parent" (code) and "Real Name" (name), on the first sheet that has them.
 

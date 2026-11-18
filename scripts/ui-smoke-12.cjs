@@ -20,13 +20,13 @@ const toast = async (page, re) => { await page.waitForFunction((s) => !document.
   // the monthly file: columns in the cashier's own order, a title row above the headers, hidden Tax_Amt, formulas for the file's own columns
   const mw = new ExcelJS.Workbook(); const ws = mw.addWorksheet('Sheet1');
   ws.addRow(['FSC claims November 2026']);
-  ws.addRow(['Service Region Code', ' Service_parent', 'Party Name', 'Gst_Lot_Num', 'Lot_Date', ' Lot_Amt', ' Tax_Amt', 'Taxable', 'TDS', 'Payable', ' Service Dlr Account Number', 'Service Dlr Bank Name', 'Service Dlr IFSC Code', ' Status']);
-  const add = (parent, inv, lot, tax, acct, bank, ifsc) => { const n = ws.rowCount + 1; ws.addRow(['S3', parent, null, inv, new Date(2026, 10, 2), lot, tax, { formula: `F${n}-G${n}`, result: lot - tax }, { formula: `ROUNDUP(H${n}*2/100,0)`, result: Math.ceil((lot - tax) * 0.02 - 1e-9) }, { formula: `F${n}-I${n}`, result: lot - Math.ceil((lot - tax) * 0.02 - 1e-9) }, acct, bank, ifsc, 'Pending']); };
+  ws.addRow(['Service Region Code', ' Service_parent', 'Party Name', 'Gst_Lot_Num', 'Lot_Date', ' Lot_Amt', ' Tax_Amt', 'Taxable', 'TDS', 'Payable', ' Service Dlr Account Number', 'Service Dlr Bank Name', 'Service Dlr IFSC Code', ' Status', 'Service DLR Remarks']);
+  const add = (parent, inv, lot, tax, acct, bank, ifsc, remark) => { const n = ws.rowCount + 1; ws.addRow(['S3', parent, null, inv, new Date(2026, 10, 2), lot, tax, { formula: `F${n}-G${n}`, result: lot - tax }, { formula: `ROUNDUP(H${n}*2/100,0)`, result: Math.ceil((lot - tax) * 0.02 - 1e-9) }, { formula: `F${n}-I${n}`, result: lot - Math.ceil((lot - tax) * 0.02 - 1e-9) }, acct, bank, ifsc, 'Pending', remark || null]); };
   add('AMMOT', '70/FL26000081', 472, 72, '50100123456789', 'HDFC BANK', 'HDFC0001234');
   add('AMMOT', '77/FL26000038', 472, 72, '50100123456789', 'HDFC BANK', 'HDFC0001234');
   add('AMMOT', '70/FL26000085', 738, 112.5, '50100123456789', 'HDFC BANK', 'HDFC0001234');
   add('AMMOT', '70/FL26000090', 1180, 180, 3344556677, 'ICICI BANK', 'ICIC0000456');               // second account of the same party, stored as a number
-  add('BHAR', '70/FL26000091', 2360, 360, '000987654321', 'STATE BANK OF INDIA', 'SBIN0000001');    // leading zeros
+  add('BHAR', '70/FL26000091', 2360, 360, '000987654321', 'STATE BANK OF INDIA', 'SBIN0000001', 'Account number is 0000987654321, one zero missing');    // leading zeros
   add('BHAR', '70/FL26000092', 5900, 900, '000987654321', 'STATE BANK OF INDIA', 'SBIN0000001');
   add('CITY', '70/FL26000093', 590, 90, '1.23457E+11', 'AXIS BANK', 'UTIB0000789');                // scientific notation: flagged
   add('CITY', '70/FL26000094', 1000, 100, null, 'AXIS BANK', 'UTIB0000789');                        // no account: shown as NOT PAID
@@ -57,6 +57,7 @@ const toast = async (page, re) => { await page.waitForFunction((s) => !document.
   assert.match(text, /50100123456789/); assert.match(text, /3344556677/); assert.match(text, /000987654321/);
   assert.doesNotMatch(await page.textContent('table'), /1\.23457E\+11/.source ? /\bUTIB0000789\b.*To pay/ : /x/);   // the damaged account is not in the pay list
   assert.match(text, /Ammot Motors Pvt Ltd/); assert.match(text, /Bharat Cars/);
+  assert.match(text, /DEALER REMARK: Account number is 0000987654321/); assert.match(text, /the dealer wrote a remark/);
   assert.match(text, /NOT PAID/); assert.match(text, /scientific notation/); assert.match(text, /Party code NEWC is not in the party codes file/);
   assert.match(text, /2 invoices are NOT in the payment list/);
   const acct = await page.$$eval('table tbody tr', (rows) => rows.map((r) => [...r.children].map((c) => c.textContent)));

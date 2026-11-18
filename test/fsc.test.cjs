@@ -152,3 +152,24 @@ test('party codes file with Selling_parent and Real Name headers', () => {
   const r = Fsc.parsePartyCodes([['Selling_parent', 'Real Name', 'Other'], ['ab01', 'Ammot Motors', 'x'], ['CD02', 'City Autos', 'y']]);
   assert.equal(r.usedHeader, true); assert.equal(r.parties.get('AB01'), 'Ammot Motors'); assert.equal(r.parties.size, 2);
 });
+
+test('Service DLR Remarks column: every remark is flagged, shown on the account and the invoice, and does not change the money', () => {
+  const head = [...HEAD, 'Status', 'Service DLR Remarks'];
+  const rows = [head,
+    row('AMMOT', 472, 72, '70/FL1', '11111111111', 'HDFC BANK', 'HDFC0001234', [null, null, 'Pending', 'Account number has one zero missing, correct is 011111111111']),
+    row('AMMOT', 472, 72, '70/FL2', '11111111111', 'HDFC BANK', 'HDFC0001234', [null, null, 'Pending', '']),
+    row('BHAR', 1000, 100, '70/FL3', '222222222222')];
+  const r = Fsc.compute(rows, parties, { fileName: 'm.xlsx' });
+  assert.equal(r.ok, true);
+  const hit = r.issues.filter((i) => /dealer wrote a remark/.test(i.text));
+  assert.equal(hit.length, 1);
+  assert.equal(hit[0].level, 'check'); assert.match(hit[0].text, /70\/FL1/); assert.match(hit[0].text, /11111111111/); assert.match(hit[0].text, /one zero missing/);
+  const a = r.accounts.find((x) => x.account === '11111111111');
+  assert.match(a.notes, /DEALER REMARK: Account number has one zero missing/);
+  assert.equal(a.toPay, 2 * (47200 - 800));
+  const rep = Fsc.buildReport(r, {});
+  const det = rep.sheets[1].sections[0];
+  assert.ok(det.columns.some((c) => c.label === 'Dealer remark'));
+  assert.equal(det.rows.filter((x) => x.remark).length, 1);
+  assert.equal(r.accounts.find((x) => x.account === '222222222222').notes, '');
+});

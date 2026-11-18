@@ -24,6 +24,7 @@ const COLUMNS = {
   partyName: { label: 'Party Name', names: ['partyname'], need: false },
   lotNum: { label: 'Lot_Num', names: ['lotnum', 'lotnumber', 'lotno'], need: false },
   lotDate: { label: 'Lot_Date', names: ['lotdate'], need: false },
+  remarks: { label: 'Service DLR Remarks', names: ['servicedlrremarks', 'servicedealerremarks', 'dlrremarks', 'dealerremarks', 'remarks', 'remark'], need: false },
   sheetTds: { label: 'TDS', names: ['tds'], need: false },
   sheetPayable: { label: 'Payable', names: ['payable'], need: false },
 };
@@ -112,6 +113,7 @@ function compute(rows, parties = new Map(), { fileName = '' } = {}) {
     line.lotNum = cleanText(at('lotNum'));
     line.lotDate = at('lotDate') instanceof Date ? at('lotDate').toISOString().slice(0, 10) : cleanText(at('lotDate'));
     line.parentCode = codeOf(at('parent'));
+    line.remark = cleanText(at('remarks'));
 
     const lot = parseMoney(at('lotAmt'));
     const tax = parseMoney(at('taxAmt'));
@@ -161,6 +163,13 @@ function compute(rows, parties = new Map(), { fileName = '' } = {}) {
   for (const l of lines) if (l.partyMissing) missingCodes.set(l.parentCode, (missingCodes.get(l.parentCode) || 0) + 1);
   for (const [code, n] of missingCodes) flag('check', null, `Party code ${code || '(blank)'} is not in the party codes file (${n} lot${n === 1 ? '' : 's'}). Add it and run again.`);
 
+  // The dealer's remarks column: they may be telling us the account number was wrong or has lost zeros. Every remark is flagged for review.
+  for (const l of lines) {
+    if (!l.remark) continue;
+    const where = l.account ? `account ${l.account}` : 'no usable account number';
+    flag('check', l.row, `${l.gstLot || 'Row ' + l.row} (${where}): the dealer wrote a remark: "${l.remark}". Read it and check the account number before paying.`);
+  }
+
   // group by account number only
   const placed = lines.filter((l) => !l.problems.length);
   const unplaced = lines.filter((l) => l.problems.length);
@@ -175,6 +184,8 @@ function compute(rows, parties = new Map(), { fileName = '' } = {}) {
     if (banks.length > 1) notes.push(`${banks.length} different bank names`);
     if (parties2.length > 1) notes.push(`${parties2.length} different parties on this account`);
     if (ls.some((l) => l.partyMissing)) notes.push('party not found');
+    const remarks = [...new Set(ls.map((l) => l.remark).filter(Boolean))];
+    if (remarks.length) notes.push(`DEALER REMARK: ${remarks.join(' | ')}`);
     const acc = {
       account, ifsc: mode(ls.map((l) => l.ifsc).filter(Boolean)) || '', bank: mode(ls.map((l) => l.bank).filter(Boolean)) || '',
       party: parties2.join(' / '), invoices: ls.length,
@@ -234,8 +245,8 @@ function buildReport(result, { generated = '' } = {}) {
   const detail = {
     heading: 'Every invoice, under its bank account',
     columns: [col('account', 'Account number'), col('party', 'Party'), col('gstLot', 'GST lot number (invoice)'), col('lotDate', 'Lot date'), col('lot', 'Lot amount', 'money2'),
-      col('tax', 'Tax amount', 'money2'), col('taxable', 'Taxable', 'money2'), col('tds', 'TDS', 'money2'), col('toPay', 'To pay', 'money2'), col('row', 'Row in file', 'int')],
-    rows: result.accounts.flatMap((a) => a.lines.map((l) => ({ account: a.account, party: l.party || `(code ${l.parentCode})`, gstLot: l.gstLot, lotDate: l.lotDate, lot: rupees(l.lotPaise), tax: rupees(l.taxPaise), taxable: rupees(l.taxable), tds: l.tds, toPay: rupees(l.toPay), row: l.row }))),
+      col('tax', 'Tax amount', 'money2'), col('taxable', 'Taxable', 'money2'), col('tds', 'TDS', 'money2'), col('toPay', 'To pay', 'money2'), col('remark', 'Dealer remark'), col('row', 'Row in file', 'int')],
+    rows: result.accounts.flatMap((a) => a.lines.map((l) => ({ account: a.account, party: l.party || `(code ${l.parentCode})`, gstLot: l.gstLot, lotDate: l.lotDate, lot: rupees(l.lotPaise), tax: rupees(l.taxPaise), taxable: rupees(l.taxable), tds: l.tds, toPay: rupees(l.toPay), remark: l.remark, row: l.row }))),
     totals: { lot: rupees(t.lotPlaced), tax: rupees(t.lotPlaced - t.taxable), taxable: rupees(t.taxable), tds: rupees(t.tds), toPay: rupees(t.toPay) },
   };
   const check = {
