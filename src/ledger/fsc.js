@@ -38,8 +38,22 @@ function install(LedgerService) {
     const result = Fsc.compute(rows, parties, { fileName });
     if (!result.ok) throw new UserError(result.error);
     const report = Fsc.buildReport(result, { generated: this.today() });
-    this._fscLast = report;
+    this._fscLast = report; this._fscResult = result;
     return { report, totals: result.totals, issueCount: result.issues.filter((i) => i.level !== 'info').length, errorCount: result.issues.filter((i) => i.level === 'error').length };
+  };
+
+  // The bank's UTR file, after the monthly file has been run: attaches UTR, amount and Paid / Return to each bank account.
+  P.fscUtr = function ({ rows, fileName }) {
+    this.auth.requireSession();
+    const result = this._fscResult;
+    if (!result) throw new UserError('Choose the monthly file first, then the UTR file.');
+    const u = Fsc.attachUtr(result, rows, { utrFileName: fileName });
+    if (!u.ok) throw new UserError(u.error);
+    result.utr = u;
+    const report = Fsc.buildReport(result, { generated: this.today() });
+    this._fscLast = report;
+    const errors = result.issues.filter((i) => i.level === 'error').length + u.issues.filter((i) => i.level === 'error').length;
+    return { report, totals: { ...result.totals, utr: u.totals }, issueCount: result.issues.filter((i) => i.level !== 'info').length + u.issues.length, errorCount: errors, utr: u.totals };
   };
 
   P.fscLastReport = function () {

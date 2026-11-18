@@ -173,3 +173,38 @@ test('Service DLR Remarks column: every remark is flagged, shown on the account 
   assert.equal(det.rows.filter((x) => x.remark).length, 1);
   assert.equal(r.accounts.find((x) => x.account === '222222222222').notes, '');
 });
+
+test('UTR file: UTR looked up by bank account, Return flagged, missing zeros matched, accounts without a UTR listed', () => {
+  const rows = [HEAD,
+    row('AMMOT', 472, 72, '70/FL1', '111111111111'),     // to pay 464
+    row('AMMOT', 472, 72, '70/FL2', '222222222222'),
+    row('BHAR', 1000, 100, '70/FL3', '0333333333'),       // to pay 982... lot 1000 tax 100 -> taxable 900 -> TDS 18 -> 982
+    row('BHAR', 590, 90, '70/FL4', '444444444444')];
+  const r = Fsc.compute(rows, parties, { fileName: 'm.xlsx' });
+  const utr = [['Some bank heading'],
+    ['Sr No', 'Bene A/c Name', 'Beneficiary Account Number', 'Amount Payable', 'UTR No', 'Status'],
+    [1, 'Ammot', '111111111111', 464, 'UTR0001', 'Paid'],
+    [2, 'Ammot', '222222222222', 464, 'UTR0002', 'Paid'],
+    [3, 'Ammot', '222222222222', 464, 'UTR0003', 'Return'],      // paid then returned
+    [4, 'Bharat', '333333333', 982, 'UTR0004', 'PAID'],         // a zero is missing in the bank file
+    [5, 'Stranger', '999999999999', 100, 'UTR0005', 'Return']];  // not ours
+  const u = Fsc.attachUtr(r, utr, { utrFileName: 'utr.xlsx' });
+  assert.equal(u.ok, true);
+  r.utr = u;
+  const by = (n) => r.accounts.find((a) => a.account === n);
+  assert.equal(by('111111111111').utr.status, 'Paid'); assert.deepEqual(by('111111111111').utr.refs, ['UTR0001']);
+  assert.equal(by('222222222222').utr.status, 'RETURNED'); assert.equal(by('222222222222').utr.returnPaise, 46400);
+  assert.equal(by('0333333333').utr.status, 'Paid'); assert.equal(by('0333333333').utr.loose, true);
+  assert.equal(by('444444444444').utr.status, 'NO UTR');
+  assert.equal(u.totals.returned, 1); assert.equal(u.totals.noUtr, 1); assert.equal(u.totals.matchedAccounts, 3);
+  assert.ok(u.issues.some((i) => /RETURN of .*464/.test(i.text) && i.level === 'error'));
+  assert.ok(u.issues.some((i) => /not in this month's list/.test(i.text)));
+  assert.ok(u.issues.some((i) => /no row in the UTR file/.test(i.text)));
+  const rep = Fsc.buildReport(r, { generated: '2026-11-18' });
+  const cols = rep.sheets[0].sections[1].columns.map((c) => c.label);
+  assert.ok(cols.includes('UTR') && cols.includes('UTR status'));
+  assert.equal(u.returns.length, 2); assert.equal(u.totals.returnRowsPaise, 46400 + 10000);
+  assert.equal(u.returns.find((x) => x.account === '222222222222').party, 'Ammot Motors'); assert.equal(u.returns.find((x) => x.account === '999999999999').inList, false);
+  assert.match(rep.sections[0].heading, /RETURNED payments in the UTR file \(2/);
+  assert.equal(Fsc.attachUtr(r, [['a', 'b'], [1, 2]]).ok, false);
+});

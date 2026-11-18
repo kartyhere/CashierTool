@@ -231,15 +231,105 @@ function parsePartyCodes(rows) {
   return { parties: out, issues, usedHeader: head >= 0 };
 }
 
+
+// ---- the bank's UTR file: find each bank account again and attach the UTR, amount and Paid / Return status ----
+// Headings differ between banks, so each column is recognised by what its heading says (after norm).
+function utrHeader(row) {
+  const idx = {}; const cells = (row || []).map(norm);
+  cells.forEach((n, c) => {
+    if (!n) return;
+    if (idx.account === undefined && /(account|acc|acct|ac)(number|no|num)$|^(beneficiary|bene|creditor|credit)?(account|acc|acct|ac)$|^beneaccno|^beneficiaryaccount(number|no)?$/.test(n) && !/name|ifsc|debit/.test(n)) idx.account = c;
+    else if (idx.utr === undefined && (/^utr/.test(n) || /^(bank)?reference(number|no)?$|^bankrefno/.test(n))) idx.utr = c;
+    else if (idx.status === undefined && /^(payment|transaction|txn)?status$/.test(n)) idx.status = c;
+    else if (idx.amount === undefined && /amount/.test(n) && !/(charge|fee|gst)/.test(n)) idx.amount = c;
+    else if (idx.date === undefined && /^(payment|transaction|txn|value|settlement|processing)?(date|dt)$/.test(n)) idx.date = c;
+    else if (idx.name === undefined && /bene.*name|name.*bene/.test(n)) idx.name = c;
+  });
+  return idx;
+}
+
+function findUtrHeader(rows) {
+  let best = { row: -1, idx: {}, score: -1 };
+  for (let r = 0; r < Math.min(rows.length, 60); r++) {
+    const idx = utrHeader(rows[r]);
+    const score = (idx.account !== undefined ? 3 : 0) + (idx.utr !== undefined ? 3 : 0) + (idx.status !== undefined ? 2 : 0) + (idx.amount !== undefined ? 1 : 0);
+    if (score > best.score) best = { row: r, idx, score };
+  }
+  const missing = [];
+  if (best.idx.account === undefined) missing.push('bank account number');
+  if (best.idx.utr === undefined) missing.push('UTR');
+  return { ...best, missing };
+}
+
+const noZeros = (a) => String(a).replace(/^0+/, '');
+const utrKind = (status) => { const n = norm(status); return /return|reject|fail|revers|refund|unpaid|cancel/.test(n) ? 'return' : (/paid|success|settled|process|complete|credited/.test(n) ? 'paid' : (n ? 'other' : 'blank')); };
+
+// result: from compute(). utrRows: the UTR file as plain rows. Adds acc.utr to every account and returns the findings.
+function attachUtr(result, utrRows, { utrFileName = '' } = {}) {
+  const head = findUtrHeader(utrRows);
+  if (head.missing.length) return { ok: false, error: `I could not find these headings in the UTR file: ${head.missing.join(', ')}. Check the header row.` };
+  const I = head.idx; const found = []; const issues = [];
+  for (let r = head.row + 1; r < utrRows.length; r++) {
+    const cells = utrRows[r] || [];
+    const acct = cleanAccount(cells[I.account]); const utr = cleanText(cells[I.utr]);
+    if (!acct.value && !utr) continue;
+    const amt = I.amount === undefined ? { empty: true } : parseMoney(cells[I.amount]);
+    const status = I.status === undefined ? '' : cleanText(cells[I.status]);
+    const d = I.date === undefined ? '' : (cells[I.date] instanceof Date ? cells[I.date].toISOString().slice(0, 10) : cleanText(cells[I.date]));
+    found.push({ row: r + 1, account: acct.value, utr, paise: amt.paise, status, kind: utrKind(status), date: d, name: I.name === undefined ? '' : cleanText(cells[I.name]) });
+  }
+  const byExact = new Map(); const byTrim = new Map();
+  for (const f of found) {
+    if (!f.account) continue;
+    byExact.set(f.account, [...(byExact.get(f.account) || []), f]);
+    byTrim.set(noZeros(f.account), [...(byTrim.get(noZeros(f.account)) || []), f]);
+  }
+  const used = new Set();
+  for (const a of result.accounts) {
+    let hits = byExact.get(a.account) || []; let loose = false;
+    if (!hits.length) { hits = byTrim.get(noZeros(a.account)) || []; loose = hits.length > 0; }
+    hits.forEach((h) => used.add(h));
+    const paid = hits.filter((h) => h.kind === 'paid'); const ret = hits.filter((h) => h.kind === 'return'); const other = hits.filter((h) => h.kind === 'other' || h.kind === 'blank');
+    const sum = (l) => l.reduce((t, h) => t + (h.paise || 0), 0);
+    const u = { rows: hits, paidPaise: sum(paid), returnPaise: sum(ret), loose, notes: [] };
+    u.refs = [...new Set(hits.map((h) => h.utr).filter(Boolean))];
+    if (!hits.length) u.status = 'NO UTR';
+    else if (ret.length) u.status = 'RETURNED';
+    else if (other.length && !paid.length) u.status = 'CHECK STATUS';
+    else u.status = 'Paid';
+    if (loose) u.notes.push(`matched to account ${hits[0].account} in the UTR file ignoring leading zeros`);
+    if (ret.length) u.notes.push(`RETURN of ${rupees(u.returnPaise)} (UTR ${ret.map((h) => h.utr || 'blank').join(', ')})`);
+    if (other.length) u.notes.push(`status "${other.map((h) => h.status || 'blank').join(', ')}" is not Paid or Return`);
+    const net = u.paidPaise;     // money that went out and did not come back; a returned row is never counted as paid
+    if (hits.length && !ret.length && !other.length && u.paidPaise !== a.toPay) u.notes.push(`UTR amount ${rupees(u.paidPaise)} is not the amount to pay ${rupees(a.toPay)}`);
+    if (ret.length && net) u.notes.push(`${rupees(net)} paid on another row; still to pay ${rupees(a.toPay - net)}`);
+    a.utr = u;
+    const where = `Account ${a.account} (${a.party || 'party not found'}, to pay ${rupees(a.toPay)})`;
+    if (!hits.length) issues.push({ level: 'check', text: `${where}: no row in the UTR file.` });
+    else for (const n of u.notes) issues.push({ level: ret.length || /not the amount|not Paid/.test(n) ? 'error' : 'check', text: `${where}: ${n}.` });
+  }
+  const unmatched = found.filter((f) => !used.has(f));
+  const acctOf = (f) => result.accounts.find((a) => a.account === f.account) || result.accounts.find((a) => noZeros(a.account) === noZeros(f.account || 'x'));
+  const returns = found.filter((f) => f.kind === 'return').map((f) => { const a = acctOf(f); return { row: f.row, account: f.account, party: a ? a.party : '', beneName: f.name, bank: a ? a.bank : '', ifsc: a ? a.ifsc : '', paise: f.paise || 0, utr: f.utr, status: f.status, date: f.date, inList: Boolean(a) }; });
+  const unmatchedReturns = unmatched.filter((f) => f.kind === 'return');
+  for (const f of unmatchedReturns) issues.push({ level: 'check', text: `UTR file row ${f.row}: a RETURN of ${rupees(f.paise || 0)} on account ${f.account || '(none)'} that is not in this month's list.` });
+  const t = { utrRows: found.length, matchedAccounts: result.accounts.filter((a) => a.utr.rows.length).length, noUtr: result.accounts.filter((a) => !a.utr.rows.length).length,
+    returned: result.accounts.filter((a) => a.utr.status === 'RETURNED').length, returnPaise: result.accounts.reduce((t2, a) => t2 + a.utr.returnPaise, 0), returnRows: returns.length, returnRowsPaise: returns.reduce((t2, x) => t2 + x.paise, 0), otherRows: unmatched.length, fileName: utrFileName };
+  return { ok: true, totals: t, issues, unmatched, returns };
+}
+
 // ---- the report as plain tables (screen, PDF and Excel all draw from this) ----
+const money2s = (paise) => `₹${new Intl.NumberFormat('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(paise / 100)}`;
 function buildReport(result, { generated = '' } = {}) {
   const col = (key, label, kind = 'text') => ({ key, label, kind });
   const t = result.totals;
+  const hasUtr = Boolean(result.utr);
   const summary = {
     heading: 'To pay, by bank account',
     columns: [col('account', 'Account number'), col('ifsc', 'IFSC'), col('bank', 'Bank'), col('party', 'Party'), col('invoices', 'Invoices', 'int'),
-      col('lot', 'Lot amount', 'money2'), col('taxable', 'Taxable', 'money2'), col('tds', 'TDS', 'money2'), col('toPay', 'To pay', 'money2'), col('notes', 'Check')],
-    rows: result.accounts.map((a) => ({ account: a.account, ifsc: a.ifsc, bank: a.bank, party: a.party, invoices: a.invoices, lot: rupees(a.lot), taxable: rupees(a.taxable), tds: rupees(a.tds), toPay: rupees(a.toPay), notes: a.notes })),
+      col('lot', 'Lot amount', 'money2'), col('taxable', 'Taxable', 'money2'), col('tds', 'TDS', 'money2'), col('toPay', 'To pay', 'money2'), ...(hasUtr ? [col('utr', 'UTR'), col('utrAmt', 'UTR amount', 'money2'), col('utrStatus', 'UTR status')] : []), col('notes', 'Check')],
+    rows: result.accounts.map((a) => ({ account: a.account, ifsc: a.ifsc, bank: a.bank, party: a.party, invoices: a.invoices, lot: rupees(a.lot), taxable: rupees(a.taxable), tds: rupees(a.tds), toPay: rupees(a.toPay),
+      ...(hasUtr ? { utr: a.utr.refs.join(', '), utrAmt: rupees(a.utr.paidPaise), utrStatus: a.utr.status } : {}), notes: [a.notes, ...(hasUtr ? a.utr.notes : [])].filter(Boolean).join('; ') })),
     totals: { invoices: t.placedRows, lot: rupees(t.lotPlaced), taxable: rupees(t.taxable), tds: rupees(t.tds), toPay: rupees(t.toPay) },
   };
   const detail = {
@@ -256,23 +346,35 @@ function buildReport(result, { generated = '' } = {}) {
       { what: 'All rows in the file: lot amount', value: rupees(t.lotAll), rows: t.rows },
       { what: 'In the payment list: lot amount', value: rupees(t.lotPlaced), rows: t.placedRows },
       { what: 'NOT in the payment list (see below)', value: rupees(t.lotUnplaced), rows: t.unplacedRows },
+      ...(hasUtr ? [
+        { what: 'UTR found for these bank accounts', value: null, rows: result.utr.totals.matchedAccounts },
+        { what: 'No UTR found for these bank accounts', value: null, rows: result.utr.totals.noUtr },
+        { what: 'Bank accounts with a RETURN', value: rupees(result.utr.totals.returnPaise), rows: result.utr.totals.returned },
+      ] : []),
       { what: t.balanced ? 'Difference (should be 0)' : 'Difference: DOES NOT ADD UP', value: rupees(t.lotAll - t.lotPlaced - t.lotUnplaced), rows: 0 },
     ],
   };
+  const allIssues = [...result.issues, ...(hasUtr ? result.utr.issues : [])];
   const issues = {
-    heading: result.issues.length ? `Things to look at (${result.issues.length})` : 'Things to look at',
+    heading: allIssues.length ? `Things to look at (${allIssues.length})` : 'Things to look at',
     columns: [col('level', 'Type'), col('row', 'Row', 'int'), col('text', 'What')],
-    rows: result.issues.filter((i) => i.level !== 'info').map((i) => ({ level: i.level === 'error' ? 'NOT PAID' : 'Check', row: i.row, text: i.text })),
+    rows: allIssues.filter((i) => i.level !== 'info').map((i) => ({ level: i.level === 'error' ? (i.row === undefined ? 'RETURN / MISMATCH' : 'NOT PAID') : 'Check', row: i.row === undefined ? null : i.row, text: i.text })),
   };
-  const sections = [summary, check, ...(issues.rows.length ? [issues] : []), detail];
+  const returnsSec = hasUtr && result.utr.returns.length ? {
+    heading: `RETURNED payments in the UTR file (${result.utr.returns.length}, ${money2s(result.utr.totals.returnRowsPaise)})`,
+    columns: [col('party', 'Party'), col('beneName', 'Name in UTR file'), col('account', 'Account number'), col('ifsc', 'IFSC'), col('bank', 'Bank'), col('amount', 'Return amount', 'money2'), col('utr', 'UTR'), col('status', 'Status'), col('where', 'In this month\'s list'), col('row', 'UTR file row', 'int')],
+    rows: result.utr.returns.map((x) => ({ party: x.party || '(not in this month\'s list)', beneName: x.beneName, account: x.account, ifsc: x.ifsc, bank: x.bank, amount: rupees(x.paise), utr: x.utr, status: x.status, where: x.inList ? 'Yes' : 'No', row: x.row })),
+    totals: { amount: rupees(result.utr.totals.returnRowsPaise) },
+  } : null;
+  const sections = [...(returnsSec ? [returnsSec] : []), summary, check, ...(issues.rows.length ? [issues] : []), detail];
   return {
     title: 'Service payment', subtitle: `${result.fileName}${generated ? ` · ${generated}` : ''} · ${t.accounts} bank accounts · ${t.placedRows} invoices`,
     fileName: `CashDesk-ServicePayment-${generated || 'report'}`, sections,
     sheets: [
-      { name: 'Pay by account', title: 'Service payment · to pay by bank account', subtitle: `${result.fileName} · ${generated}`, sections: [summary, check, ...(issues.rows.length ? [issues] : [])] },
+      { name: 'Pay by account', title: 'Service payment · to pay by bank account', subtitle: `${result.fileName} · ${generated}`, sections: [...(returnsSec ? [returnsSec] : []), summary, check, ...(issues.rows.length ? [issues] : [])] },
       { name: 'Invoices', title: 'Service payment · every invoice', subtitle: `${result.fileName} · ${generated}`, sections: [detail] },
     ],
   };
 }
 
-module.exports = { compute, findHeader, parsePartyCodes, buildReport, lotFigures, cleanAccount, parseMoney, COLUMNS, TDS_PERCENT };
+module.exports = { attachUtr, findUtrHeader, compute, findHeader, parsePartyCodes, buildReport, lotFigures, cleanAccount, parseMoney, COLUMNS, TDS_PERCENT };

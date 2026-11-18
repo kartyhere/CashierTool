@@ -120,9 +120,9 @@ async function boot() {
       return r.canceled || !r.filePaths.length ? null : r.filePaths[0];
     },
     chooseExcelFile: async ({ which, folder }) => {
-      if (!app.isPackaged) { const f = which === 'parties' ? process.env.CASHDESK_PARTY_FILE : process.env.CASHDESK_FSC_FILE; if (f) return f; }   // tests
+      if (!app.isPackaged) { const f = which === 'parties' ? process.env.CASHDESK_PARTY_FILE : which === 'utr' ? process.env.CASHDESK_UTR_FILE : process.env.CASHDESK_FSC_FILE; if (f) return f; }   // tests
       const r = await dialog.showOpenDialog(mainWindow, {
-        title: which === 'parties' ? 'Choose the party codes Excel file' : 'Choose the monthly service payment Excel file',
+        title: which === 'parties' ? 'Choose the party codes Excel file' : which === 'utr' ? 'Choose the bank UTR Excel file' : 'Choose the monthly service payment Excel file',
         defaultPath: folder || app.getPath('documents'), properties: ['openFile'], filters: [{ name: 'Excel', extensions: ['xlsx'] }],
       });
       return r.canceled || !r.filePaths.length ? null : r.filePaths[0];

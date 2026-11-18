@@ -120,6 +120,14 @@ function registerIpc({ ipcMain, guard, auth, ledger, repo, store, appInfo, onThe
     store.transaction(() => repo.setSetting('fsc_folder', require('node:path').dirname(file)), { defer: true });
     return r;
   });
+  handle('fsc.utr', 'unlocked', async () => {
+    const file = await chooseExcelFile({ which: 'utr', folder: repo.getSetting('fsc_folder', null) });
+    if (!file) return { cancelled: true };
+    const { findUtrHeader } = require('./core/fsc');
+    const sheets = await require('./fsc/excel').readWorkbook(file);
+    const sheet = sheets.find((sh) => !findUtrHeader(sh.rows).missing.length) || sheets[0];
+    return ledger.fscUtr({ rows: sheet ? sheet.rows : [], fileName: require('node:path').basename(file) });
+  });
   handle('fsc.export', 'unlocked', async (p) => {
     const format = p.format;
     if (format !== 'pdf' && format !== 'xlsx') throw new UserError('Choose PDF or Excel.');

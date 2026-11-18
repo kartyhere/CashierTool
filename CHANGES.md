@@ -1,5 +1,12 @@
 # Cash Desk changes
 
+## 0.14.0 — Service payment: bank UTR file
+- After the monthly report, press U (or the UTR file button) and choose the bank's UTR Excel file. The tool finds the header row and the columns (bank account number, UTR, Status, Amount, Name) by their headings.
+- **Heads-up first:** if any row in the UTR file has a Return status, a red line says how many and the total, and a table "RETURNED payments in the UTR file" is listed first: party, name in the UTR file, account number, IFSC, bank, return amount, UTR, status, and whether the account is in this month's list.
+- **UTR lookup by bank account:** each bank account in the report gets its UTR number(s), the amount the bank paid and a status: Paid, RETURNED (paid then returned), CHECK STATUS (anything not Paid or Return) or NO UTR. A UTR amount that is different from the amount to pay is flagged. If the bank file has an account number with a missing leading zero, it is still matched and says so.
+- The summary also counts accounts with a UTR, without a UTR, and with a return. The Excel and PDF now carry all of it.
+- Nothing is saved from the UTR file; it is read, matched, and used for this report only.
+
 ## 0.13.2 — Dealer remarks flagged
 - Service payment reads the "Service DLR Remarks" column. Every row with a remark is listed under "Things to look at" with its account number and the dealer's words, the remark is shown on the bank account line (DEALER REMARK) and next to the invoice in the detail table and Excel. The tool never edits an account number: you read the remark and decide.
 

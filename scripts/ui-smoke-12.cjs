@@ -17,6 +17,13 @@ const toast = async (page, re) => { await page.waitForFunction((s) => !document.
   const pw = new ExcelJS.Workbook(); const pws = pw.addWorksheet('Parties');
   pws.addRow(['Service Parent Code', 'Party Name']); [['AMMOT', 'Ammot Motors Pvt Ltd'], ['BHAR', 'Bharat Cars'], ['CITY', 'City Auto Works']].forEach((r) => pws.addRow(r));
   await pw.xlsx.writeFile(path.join(work, 'parties.xlsx'));
+  // the bank's UTR file: one paid, one paid-then-returned, one return that is not ours, a missing zero for the Bharat account
+  const uw = new ExcelJS.Workbook(); const us = uw.addWorksheet('Sheet1');
+  us.addRow(['Bank payment file']);
+  us.addRow(['Sr No', 'Bene A/c Name', 'Beneficiary Account Number', 'Amount Payable', 'UTR No', 'Status']);
+  [[1, 'AMMOT MOTORS', '50100123456789', 1653, 'UTR000A', 'Paid'], [2, 'AMMOT MOTORS', '3344556677', 1160, 'UTR000B', 'Paid'], [3, 'AMMOT MOTORS', '3344556677', 1160, 'UTR000C', 'Return'],
+    [4, 'BHARAT CARS', '987654321', 8120, 'UTR000D', 'Paid'], [5, 'SOMEONE ELSE', '55566677788', 500, 'UTR000E', 'Return']].forEach((r) => us.addRow(r));
+  await uw.xlsx.writeFile(path.join(work, 'utr.xlsx'));
   // the monthly file: columns in the cashier's own order, a title row above the headers, hidden Tax_Amt, formulas for the file's own columns
   const mw = new ExcelJS.Workbook(); const ws = mw.addWorksheet('Sheet1');
   ws.addRow(['FSC claims November 2026']);
@@ -36,7 +43,7 @@ const toast = async (page, re) => { await page.waitForFunction((s) => !document.
   const exportDir = path.join(work, 'exports'); fs.mkdirSync(exportDir);
 
   const userData = fs.mkdtempSync(path.join(os.tmpdir(), 'cd-ud12-'));
-  const app = await electron.launch({ executablePath: require('electron'), args: [root, '--no-sandbox', '--disable-gpu'], env: { ...process.env, CASHDESK_USER_DATA: userData, CASHDESK_TEST_KEYSTORE: '1', CASHDESK_FSC_FILE: path.join(work, 'month.xlsx'), CASHDESK_PARTY_FILE: path.join(work, 'parties.xlsx'), CASHDESK_EXPORT_DIR: exportDir } });
+  const app = await electron.launch({ executablePath: require('electron'), args: [root, '--no-sandbox', '--disable-gpu'], env: { ...process.env, CASHDESK_USER_DATA: userData, CASHDESK_TEST_KEYSTORE: '1', CASHDESK_FSC_FILE: path.join(work, 'month.xlsx'), CASHDESK_UTR_FILE: path.join(work, 'utr.xlsx'), CASHDESK_PARTY_FILE: path.join(work, 'parties.xlsx'), CASHDESK_EXPORT_DIR: exportDir } });
   const page = await app.firstWindow();
   page.on('pageerror', (e) => { console.error('PAGE ERROR', e); process.exitCode = 1; });
   await page.waitForSelector('.screen');
@@ -66,6 +73,16 @@ const toast = async (page, re) => { await page.waitForFunction((s) => !document.
   const sbi = acct.find((r) => r[0] === '000987654321');
   assert.equal(sbi[5], '8,260.00'); assert.equal(sbi[7], '140.00'); assert.equal(sbi[8], '8,120.00');          // 2000 -> 40, 5000 -> 100
   await shot(page, 'f1-report');
+  // the bank's UTR file
+  assert.equal(await page.isDisabled('button:has-text("UTR file")'), false);
+  await page.keyboard.press('u'); await page.waitForSelector('text=HEADS UP');
+  const t2 = await page.textContent('.page');
+  assert.match(t2, /HEADS UP: 2 RETURNED payments in the UTR file/); assert.match(t2, /RETURNED payments in the UTR file \(2/);
+  assert.match(t2, /UTR000A/); assert.match(t2, /Ammot Motors Pvt Ltd/); assert.match(t2, /No UTR found|no row in the UTR file/);
+  const rows2 = await page.$$eval('table tbody tr', (rs) => rs.map((r) => [...r.children].map((c) => c.textContent)));
+  const amm = rows2.find((r) => r[0] === '50100123456789' && r.includes('Paid'));
+  assert.ok(amm, 'Ammot account shows Paid with its UTR'); assert.ok(amm.includes('UTR000A'));
+  await shot(page, 'f2-utr');
   await page.keyboard.press('Alt+x'); await toast(page, 'Saved');
   await page.keyboard.press('Alt+p'); await toast(page, 'Saved');
   const files = fs.readdirSync(exportDir).sort();
