@@ -1,5 +1,8 @@
 # Cash Desk changes
 
+## 0.13.1 — Party codes file
+- The party codes Excel is read by its headers "Selling_parent" (code) and "Real Name" (name), on the first sheet that has them.
+
 ## 0.13.0 — Service payment (free service payment tool)
 - **New Gateway tile: Service payment (F).** Load the party codes Excel once (P), then each month choose the monthly Excel file (Enter). The report shows what to pay each bank account.
 - Finds the header row by itself, so rearranged columns, title rows and hidden columns (Tax_Amt) are fine. Party name is looked up from Service_parent in your party codes list.

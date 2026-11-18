@@ -147,3 +147,8 @@ test('reads a real .xlsx (formulas, hidden column, text and number accounts) and
   assert.equal(typeof found.getCell(1).value, 'string');                 // account number is text in Excel
   assert.ok(require('../src/export/pdf').toPdf(a.ledger.fscLastReport()).length > 1000);
 });
+
+test('party codes file with Selling_parent and Real Name headers', () => {
+  const r = Fsc.parsePartyCodes([['Selling_parent', 'Real Name', 'Other'], ['ab01', 'Ammot Motors', 'x'], ['CD02', 'City Autos', 'y']]);
+  assert.equal(r.usedHeader, true); assert.equal(r.parties.get('AB01'), 'Ammot Motors'); assert.equal(r.parties.size, 2);
+});

@@ -200,8 +200,8 @@ function compute(rows, parties = new Map(), { fileName = '' } = {}) {
 
 // ---- the party codes file: two columns, a code and the real party name ----
 function parsePartyCodes(rows) {
-  const codeNames = ['code', 'partycode', 'parentcode', 'serviceparent', 'parent', 'serviceparentcode'];
-  const nameNames = ['name', 'partyname', 'partyfullname', 'parentname', 'servicepartyname', 'dealername', 'party'];
+  const codeNames = ['sellingparent', 'code', 'partycode', 'parentcode', 'serviceparent', 'parent', 'serviceparentcode'];
+  const nameNames = ['realname', 'name', 'partyname', 'partyfullname', 'parentname', 'servicepartyname', 'dealername', 'party'];
   let head = -1, cc = 0, nc = 1;
   for (let r = 0; r < Math.min(rows.length, 20) && head < 0; r++) {
     const cells = (rows[r] || []).map(norm);
