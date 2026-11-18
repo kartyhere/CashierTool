@@ -162,3 +162,17 @@ tr[tabindex]:focus .minus, tr[tabindex]:hover .minus { color: var(--ink); }
 .lines-grid input.amt { text-align: right; width: 110px; }
 .grid input.back { width: 90px; }
 .mini td { padding: 4px 8px; font-size: 13px; }
+
+/* Service payment: invoice search */
+.fsc-search { padding: 18px 20px; }
+.fsc-fields { display: grid; grid-template-columns: 1.5fr 1fr; gap: 10px; }
+.fsc-hits { margin-top: 8px; max-height: 232px; overflow-y: auto; }
+.fsc-hit { display: grid; grid-template-columns: 1.3fr 1.6fr 1.1fr 0.8fr 1.4fr auto; gap: 12px; align-items: center; padding: 8px 12px; border: 1px solid transparent; border-bottom-color: var(--line); font-size: 13px; }
+.fsc-hit.selected { background: var(--fill); color: var(--ink); }
+.fsc-hit .hit-amt { text-align: right; font-family: 'Geist Mono', monospace; }
+.fsc-hit .hit-utr { font-family: 'Geist Mono', monospace; font-weight: 600; }
+.fsc-hit .hit-utr.none { font-weight: 400; color: var(--danger); }
+.fsc-hit.selected .hit-utr.none { color: var(--ink); }
+.fsc-hit button.copy-utr { padding: 5px 10px; font-size: 11px; }
+.fsc-hit.selected button.copy-utr { border-color: var(--ink); color: var(--ink); }
+.fsc-hit button.copy-utr:focus-visible { background: var(--ink); color: var(--fill); outline: 2px solid var(--brand); outline-offset: 1px; }

@@ -208,3 +208,15 @@ test('UTR file: UTR looked up by bank account, Return flagged, missing zeros mat
   assert.match(rep.sections[0].heading, /RETURNED payments in the UTR file \(2/);
   assert.equal(Fsc.attachUtr(r, [['a', 'b'], [1, 2]]).ok, false);
 });
+
+test('invoice search: partial number, party filter, paid UTR chosen over a returned row', () => {
+  const rows = [HEAD, row('AMMOT', 472, 72, '70/FL26000081', '111111111111'), row('AMMOT', 472, 72, '70/FL26000082', '222222222222'), row('BHAR', 1000, 100, '77/FL26000083', '333333333333')];
+  const r = Fsc.compute(rows, parties, { fileName: 'm.xlsx' });
+  r.utr = Fsc.attachUtr(r, [['Beneficiary Account Number', 'Amount', 'UTR No', 'Status'], ['111111111111', 464, 'U1', 'Paid'], ['222222222222', 464, 'U2R', 'Return'], ['222222222222', 464, 'U2', 'Paid']]);
+  assert.deepEqual(Fsc.searchInvoices(r, { q: '81' }).map((x) => x.gstLot), ['70/FL26000081']);
+  assert.equal(Fsc.searchInvoices(r, { q: 'fl 26000 081' })[0].utr, 'U1');                      // spaces and case do not matter
+  assert.equal(Fsc.searchInvoices(r, { q: '82' })[0].utr, 'U2');                                 // the paid one, not the returned one
+  assert.equal(Fsc.searchInvoices(r, { q: '83' })[0].utr, '');                                   // no UTR for this account
+  assert.deepEqual(Fsc.searchInvoices(r, { party: 'bharat' }).map((x) => x.gstLot), ['77/FL26000083']);
+  assert.equal(Fsc.searchInvoices(r, { q: '2600008' }).length, 3);
+});

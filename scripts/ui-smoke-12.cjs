@@ -75,7 +75,7 @@ const toast = async (page, re) => { await page.waitForFunction((s) => !document.
   await shot(page, 'f1-report');
   // the bank's UTR file
   assert.equal(await page.isDisabled('button:has-text("UTR file")'), false);
-  await page.keyboard.press('u'); await page.waitForSelector('text=HEADS UP');
+  await page.keyboard.press('Alt+u'); await page.waitForSelector('text=HEADS UP');
   const t2 = await page.textContent('.page');
   assert.match(t2, /HEADS UP: 2 RETURNED payments in the UTR file/); assert.match(t2, /RETURNED payments in the UTR file \(2/);
   assert.match(t2, /UTR000A/); assert.match(t2, /Ammot Motors Pvt Ltd/); assert.match(t2, /No UTR found|no row in the UTR file/);
@@ -83,6 +83,38 @@ const toast = async (page, re) => { await page.waitForFunction((s) => !document.
   const amm = rows2.find((r) => r[0] === '50100123456789' && r.includes('Paid'));
   assert.ok(amm, 'Ammot account shows Paid with its UTR'); assert.ok(amm.includes('UTR000A'));
   await shot(page, 'f2-utr');
+  // search: type part of an invoice number, arrows choose, Enter copies the UTR, Right arrow reaches the Copy button, party filter narrows
+  const clip = () => app.evaluate(({ clipboard }) => clipboard.readText());
+  await page.focus('#fsc-q'); await page.keyboard.type('FL26000081');
+  await page.waitForSelector('.fsc-hit');
+  assert.equal(await page.$$eval('.fsc-hit', (e) => e.length), 1);
+  await page.keyboard.press('Enter'); await toast(page, 'Copied UTR UTR000A');
+  assert.equal(await clip(), 'UTR000A');
+  assert.equal(await page.evaluate(() => document.activeElement.id), 'fsc-q');           // focus is back in the box, ready for the next invoice
+  await page.keyboard.type('FL2600009');                                                  // replaced the selected text: matches 90 and 91..94 and 95
+  await page.waitForFunction(() => document.querySelectorAll('.fsc-hit').length >= 4);
+  const before = await page.$$eval('.fsc-hit', (e) => e.map((x) => x.querySelector('.hit-inv').textContent));
+  await page.keyboard.press('ArrowDown');
+  assert.equal(await page.$eval('.fsc-hit.selected .hit-inv', (e) => e.textContent), before[1]);
+  await page.keyboard.press('ArrowUp'); await page.keyboard.press('Enter'); await toast(page, 'Copied UTR UTR000B');   // 70/FL26000090 is on the account with a paid and a returned row: the paid UTR is copied
+  assert.equal(await clip(), 'UTR000B');
+  await page.keyboard.press('ArrowRight');
+  assert.equal(await page.evaluate(() => document.activeElement.className), 'copy-utr');   // the text was selected to its end, so Right reaches the Copy UTR button
+  await page.keyboard.press('Enter'); await page.waitForTimeout(200);
+  assert.equal(await page.evaluate(() => document.activeElement.id), 'fsc-q');
+  await page.keyboard.press('Tab'); await page.keyboard.type('bharat');                   // party filter
+  await page.waitForFunction(() => [...document.querySelectorAll('.fsc-hit .hit-party')].every((e) => /Bharat/.test(e.textContent)));
+  assert.ok(await page.$$eval('.fsc-hit', (e) => e.length) >= 1);
+  await page.keyboard.press('Enter');                                                      // from the party box Enter goes back to the invoice box
+  assert.equal(await page.evaluate(() => document.activeElement.id), 'fsc-q');
+  await page.fill('#fsc-q', 'FL26000093'); await page.keyboard.press('Enter');             // account is damaged, so no UTR to copy: a clear message, nothing copied
+  await page.waitForSelector('.error:not(:empty)');
+  assert.equal(await clip(), 'UTR000B');
+  await page.keyboard.press('Escape');                                                     // Esc clears the box first; a letter typed in a box does not trigger P / U
+  await page.fill('#fsc-party', ''); await page.focus('#fsc-q'); await page.keyboard.type('pu');
+  assert.equal(await page.inputValue('#fsc-q'), 'pu');
+  await page.fill('#fsc-q', ''); await page.fill('#fsc-party', '');
+  await shot(page, 'f3-search');
   await page.keyboard.press('Alt+x'); await toast(page, 'Saved');
   await page.keyboard.press('Alt+p'); await toast(page, 'Saved');
   const files = fs.readdirSync(exportDir).sort();

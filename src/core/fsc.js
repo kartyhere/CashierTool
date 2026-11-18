@@ -377,4 +377,20 @@ function buildReport(result, { generated = '' } = {}) {
   };
 }
 
-module.exports = { attachUtr, findUtrHeader, compute, findHeader, parsePartyCodes, buildReport, lotFigures, cleanAccount, parseMoney, COLUMNS, TDS_PERCENT };
+// ---- search an invoice (GST lot number) and get the UTR of its bank account ----
+const simple = (v) => String(v || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+function searchInvoices(result, { q = '', party = '', limit = 50 } = {}) {
+  const needle = simple(q); const pneedle = String(party || '').toLowerCase().trim();
+  const all = [];
+  for (const a of result.accounts) {
+    const u = a.utr;
+    const paid = u ? u.rows.find((h) => h.kind === 'paid' && h.utr) : null;
+    for (const l of a.lines) all.push({ row: l.row, gstLot: l.gstLot, party: l.party || a.party || '', account: a.account, ifsc: a.ifsc, bank: a.bank, toPay: l.toPay / 100, utr: paid ? paid.utr : '', utrStatus: u ? u.status : '', hasUtrFile: Boolean(u) });
+  }
+  for (const l of result.unplaced) all.push({ row: l.row, gstLot: l.gstLot, party: l.party || '', account: l.account || '', ifsc: '', bank: '', toPay: l.hasLot ? (l.toPay || 0) / 100 : 0, utr: '', utrStatus: 'NOT PAID', hasUtrFile: Boolean(result.utr) });
+  const rank = (x) => { const n = simple(x.gstLot); if (!needle) return 3; if (n === needle) return 0; if (n.endsWith(needle)) return 1; if (n.startsWith(needle)) return 2; return n.includes(needle) ? 3 : -1; };
+  return all.filter((x) => (!pneedle || x.party.toLowerCase().includes(pneedle)) && rank(x) >= 0)
+    .sort((a, b) => rank(a) - rank(b) || (a.party ? 0 : 1) - (b.party ? 0 : 1) || a.party.localeCompare(b.party) || a.gstLot.localeCompare(b.gstLot, 'en', { numeric: true })).slice(0, limit);
+}
+
+module.exports = { searchInvoices, attachUtr, findUtrHeader, compute, findHeader, parsePartyCodes, buildReport, lotFigures, cleanAccount, parseMoney, COLUMNS, TDS_PERCENT };

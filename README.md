@@ -17,7 +17,7 @@ All screenshots below use dummy data (invented names and amounts).
 - **Tally check (T or Ctrl+T) and morning check:** compare the app with Tally at any time; from 9:15 the app asks for yesterday's Tally balance and asks again every 30 minutes until it is entered.
 - **Day close (C):** count the drawer, compare with the books and Tally, close. A difference becomes an adjustment so the next day opens on the real count. An admin can reopen a day with a reason.
 - **Reports (R):** cash book, denomination report, day entries, voucher register, payments by person, expense summary, receipts by source, bank deposits, person balances. Each as PDF or Excel.
-- **Service payment (F):** load the party codes Excel once, then each month's Excel file. Shows what to pay each bank account (Taxable, TDS 2% rounded up, To pay), lists every row that could not be placed, flags the dealer's remarks, matches the bank's UTR file (UTR per bank account, returned payments first), and exports Excel / PDF.
+- **Service payment (F):** load the party codes Excel once, then each month's Excel file. Shows what to pay each bank account (Taxable, TDS 2% rounded up, To pay), lists every row that could not be placed, flags the dealer's remarks, matches the bank's UTR file (UTR per bank account, returned payments first), searches an invoice number (or party) and copies its UTR with Enter, and exports Excel / PDF.
 - **Settings (S, admin only):** limits and times, users, hide notes and coins, lists, backups.
 
 ## Keys

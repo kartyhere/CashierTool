@@ -2,7 +2,7 @@
 // Cash Desk main process: one window, one database, one preload.
 const path = require('node:path');
 const fs = require('node:fs');
-const { app, BrowserWindow, Menu, dialog, ipcMain, nativeTheme, powerMonitor, safeStorage, session } = require('electron');
+const { app, BrowserWindow, Menu, clipboard, dialog, ipcMain, nativeTheme, powerMonitor, safeStorage, session } = require('electron');
 
 const { createVault } = require('./security/vault');
 const { createGuard } = require('./security/guard');
@@ -109,6 +109,7 @@ async function boot() {
     appInfo: { name: app.getName(), version: app.getVersion() },
     onThemeChange: (theme) => { nativeTheme.themeSource = theme; },
     backups,
+    copyText: (text) => clipboard.writeText(String(text)),
     chooseFolder: async ({ current }) => {
       if (!app.isPackaged && process.env.CASHDESK_BACKUP_DIR) return process.env.CASHDESK_BACKUP_DIR; // tests
       const r = await dialog.showOpenDialog(mainWindow, { title: 'Backup folder', defaultPath: current, properties: ['openDirectory', 'createDirectory'] });

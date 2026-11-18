@@ -56,6 +56,23 @@ function install(LedgerService) {
     return { report, totals: { ...result.totals, utr: u.totals }, issueCount: result.issues.filter((i) => i.level !== 'info').length + u.issues.length, errorCount: errors, utr: u.totals };
   };
 
+  P.fscSearch = function ({ q, party }) {
+    this.auth.requireSession();
+    if (!this._fscResult) return { ready: false, items: [] };
+    return { ready: true, hasUtr: Boolean(this._fscResult.utr), items: Fsc.searchInvoices(this._fscResult, { q: String(q || ''), party: String(party || '') }) };
+  };
+
+  // The UTR for one invoice row of the monthly file (the page sends only the row number; main finds the text to copy).
+  P.fscUtrFor = function ({ row }) {
+    this.auth.requireSession();
+    if (!this._fscResult) throw new UserError('Choose the monthly file first.');
+    if (!this._fscResult.utr) throw new UserError('Load the UTR file first (press U).');
+    const hit = Fsc.searchInvoices(this._fscResult, { limit: 100000 }).find((x) => x.row === Number(row));
+    if (!hit) throw new UserError('That invoice is not in the list.');
+    if (!hit.utr) throw new UserError(hit.utrStatus === 'RETURNED' ? 'This payment was RETURNED and has no paid UTR.' : 'No paid UTR was found for this bank account.');
+    return { utr: hit.utr, gstLot: hit.gstLot };
+  };
+
   P.fscLastReport = function () {
     this.auth.requireSession();
     if (!this._fscLast) throw new UserError('Run the monthly file first.');

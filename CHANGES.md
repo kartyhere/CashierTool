@@ -1,5 +1,14 @@
 # Cash Desk changes
 
+## 0.15.0 — Service payment: invoice search that copies the UTR
+- **Search at the top of the Service payment screen.** After the monthly file and the UTR file are loaded the cursor goes to the Invoice number box. Type any part of the GST lot number (slashes and spaces are ignored); the matching invoices are listed with party, account number, amount to pay and UTR.
+- **Up / Down** choose a line. **Enter copies that invoice's UTR** to the clipboard and keeps the cursor in the box with the text selected, so the next invoice number replaces it. The toast shows what was copied.
+- **Right arrow** (from the end of the box) moves to the "Copy UTR" button on the chosen line, Enter copies, **Left** goes back to the box. Up / Down on the button move to the next line.
+- **Party name filter** is the box beside it (Tab). It can narrow the invoice search or be used alone. Enter in it goes back to the invoice box.
+- If an account has a paid and a returned row, the paid UTR is copied. A returned payment, a missing UTR or an unreadable account says so in red and copies nothing.
+- Esc clears the box; Esc on an empty box goes back. Alt+F jumps to the search box. P and U shortcuts do not fire while typing in a box; Alt+U loads the UTR file from anywhere.
+- Only the UTR text is copied, and only for an invoice in the list; the screen never sends arbitrary text to the clipboard.
+
 ## 0.14.0 — Service payment: bank UTR file
 - After the monthly report, press U (or the UTR file button) and choose the bank's UTR Excel file. The tool finds the header row and the columns (bank account number, UTR, Status, Amount, Name) by their headings.
 - **Heads-up first:** if any row in the UTR file has a Return status, a red line says how many and the total, and a table "RETURNED payments in the UTR file" is listed first: party, name in the UTR file, account number, IFSC, bank, return amount, UTR, status, and whether the account is in this month's list.

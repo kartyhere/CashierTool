@@ -24,7 +24,7 @@ function describe(error, log) {
   return { ok: false, code: 'ERROR', message: 'Something went wrong. Nothing was changed.' };
 }
 
-function registerIpc({ ipcMain, guard, auth, ledger, repo, store, appInfo, onThemeChange = () => {}, chooseSavePath = async () => null, chooseFolder = async () => null, chooseBackupFile = async () => null, chooseExcelFile = async () => null, backups = null, afterRestore = () => {}, log = (e) => console.error(e) }) {
+function registerIpc({ ipcMain, guard, auth, ledger, repo, store, appInfo, onThemeChange = () => {}, chooseSavePath = async () => null, chooseFolder = async () => null, chooseBackupFile = async () => null, chooseExcelFile = async () => null, copyText = () => {}, backups = null, afterRestore = () => {}, log = (e) => console.error(e) }) {
   function handle(channel, access, fn) {
     ipcMain.handle(channel, async (event, payload) => {
       try {
@@ -128,6 +128,8 @@ function registerIpc({ ipcMain, guard, auth, ledger, repo, store, appInfo, onThe
     const sheet = sheets.find((sh) => !findUtrHeader(sh.rows).missing.length) || sheets[0];
     return ledger.fscUtr({ rows: sheet ? sheet.rows : [], fileName: require('node:path').basename(file) });
   });
+  handle('fsc.search', 'unlocked', (p) => ledger.fscSearch({ q: p.q, party: p.party }));
+  handle('fsc.copyUtr', 'unlocked', (p) => { const r = ledger.fscUtrFor({ row: p.row }); copyText(r.utr); return r; });
   handle('fsc.export', 'unlocked', async (p) => {
     const format = p.format;
     if (format !== 'pdf' && format !== 'xlsx') throw new UserError('Choose PDF or Excel.');
