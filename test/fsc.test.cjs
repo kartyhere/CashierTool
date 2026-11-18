@@ -228,3 +228,17 @@ test('Service_DlrCd and Service_Loc are read and searchable', () => {
   const hit = Fsc.searchInvoices(r, { q: 'fl1' })[0];
   assert.equal(hit.dlrCd, 'DC77'); assert.equal(hit.loc, 'Kochi');
 });
+
+test('remarks: only the Service DLR Remarks column counts, and filler text is not a remark', () => {
+  const head = [...HEAD, 'Remarks', 'Service DLR Remarks'];
+  const rows = [head,
+    row('AMMOT', 472, 72, '70/FL1', '111111111111', 'HDFC BANK', 'HDFC0001234', ['x', 'x', 'Pending', 'Account number has a zero missing']),
+    row('AMMOT', 472, 72, '70/FL2', '222222222222', 'HDFC BANK', 'HDFC0001234', ['x', 'x', 'Approved by someone', '-']),
+    row('BHAR', 1000, 100, '70/FL3', '333333333333', 'HDFC BANK', 'HDFC0001234', ['x', 'x', 'Paid earlier', 'NA']),
+    row('BHAR', 1000, 100, '70/FL4', '444444444444', 'HDFC BANK', 'HDFC0001234', ['x', 'x', 'ok', ''])];
+  const r = Fsc.compute(rows, parties, { fileName: 'm.xlsx' });
+  const hits = r.issues.filter((i) => /dealer wrote a remark/.test(i.text));
+  assert.equal(hits.length, 1); assert.match(hits[0].text, /70\/FL1/);
+  const none = Fsc.compute([[...HEAD, 'Remarks'], row('AMMOT', 472, 72, '70/FL9', '555555555555', 'HDFC BANK', 'HDFC0001234', [null, null, 'every row has this'])], parties, { fileName: 'm.xlsx' });
+  assert.equal(none.issues.filter((i) => /dealer wrote a remark/.test(i.text)).length, 0);   // a plain Remarks column is not the dealer's column
+});

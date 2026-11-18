@@ -26,7 +26,7 @@ const COLUMNS = {
   loc: { label: 'Service_Loc', names: ['serviceloc', 'servicelocation', 'loc', 'location'], need: false },
   lotNum: { label: 'Lot_Num', names: ['lotnum', 'lotnumber', 'lotno'], need: false },
   lotDate: { label: 'Lot_Date', names: ['lotdate'], need: false },
-  remarks: { label: 'Service DLR Remarks', names: ['servicedlrremarks', 'servicedealerremarks', 'dlrremarks', 'dealerremarks', 'remarks', 'remark'], need: false },
+  remarks: { label: 'Service DLR Remarks', names: ['servicedlrremarks', 'servicedlrremark', 'servicedealerremarks', 'servicedealerremark'], need: false },   // exactly the servicing dealer's column: a plain "Remarks" column is somebody else's and is ignored
   sheetTds: { label: 'TDS', names: ['tds'], need: false },
   sheetPayable: { label: 'Payable', names: ['payable'], need: false },
 };
@@ -76,6 +76,8 @@ function cleanAccount(v) {
 const cleanIfsc = (v) => String(v === null || v === undefined ? '' : v).replace(/\s/g, '').toUpperCase();
 const ifscOk = (s) => /^[A-Z]{4}0[A-Z0-9]{6}$/.test(s);
 const cleanText = (v) => String(v === null || v === undefined ? '' : v).replace(/\s+/g, ' ').trim();
+// A remark is real text written by the servicing dealer. Blanks and filler such as -, NA, nil, 0 are not remarks.
+const dealerRemark = (v) => { const t = cleanText(v); return /^[\s\-–—_.,;:/\\*#0]*$|^(na|n\/a|nil|none|null|no|nan|not applicable|no remarks?)$/i.test(t) ? '' : t; };
 const codeOf = (v) => cleanText(v).toUpperCase();
 
 // Taxable and TDS for one lot, in paise / whole rupees. TDS is rounded UP.
@@ -115,7 +117,7 @@ function compute(rows, parties = new Map(), { fileName = '' } = {}) {
     line.lotNum = cleanText(at('lotNum'));
     line.lotDate = at('lotDate') instanceof Date ? at('lotDate').toISOString().slice(0, 10) : cleanText(at('lotDate'));
     line.parentCode = codeOf(at('parent'));
-    line.remark = cleanText(at('remarks'));
+    line.remark = dealerRemark(at('remarks'));
     line.dlrCd = cleanText(at('dlrCd'));
     line.loc = cleanText(at('loc'));
 

@@ -1,5 +1,9 @@
 # Cash Desk changes
 
+## 0.15.2 — Dealer remarks flagged only when the dealer wrote one
+- Only the "Service DLR Remarks" column is read. A plain "Remarks" or "Remark" column (which belongs to someone else and is often filled on most rows) is ignored.
+- Filler in the dealer's column (blank, -, NA, nil, none, 0) is not a remark. A row is flagged only when the dealer wrote real text.
+
 ## 0.15.1 — Dealer code and location in the search
 - The invoice search lines now show the dealer code (Service_DlrCd) and the location (Service_Loc) from the monthly file. The invoice detail table, Excel and PDF carry both columns too.
 
