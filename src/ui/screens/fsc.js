@@ -44,7 +44,7 @@
         const btn = h('button', { type: 'button', tabindex: '-1', class: 'copy-utr', 'aria-label': `Copy UTR of ${x.gstLot}`, on: { click: () => copyAt(n) } }, 'Copy UTR');
         copyBtns.push(btn);
         return h('div', { class: 'fsc-hit', role: 'option', 'data-i': String(n), on: { mousedown: (ev) => { ev.preventDefault(); selectRow(n); qBox.focus(); } } },
-          h('span', { class: 'hit-inv' }, x.gstLot || `(row ${x.row})`), h('span', { class: 'hit-party' }, x.party || '(party not found)'),
+          h('span', { class: 'hit-inv' }, x.gstLot || `(row ${x.row})`), h('span', { class: 'hit-party' }, x.party || '(party not found)'), h('span', { class: 'hit-dlr' }, x.dlrCd), h('span', { class: 'hit-loc' }, x.loc),
           h('span', { class: 'hit-acct' }, x.account || '(no account)'), h('span', { class: 'hit-amt' }, inr2(x.toPay)),
           h('span', { class: `hit-utr${x.utr ? '' : ' none'}` }, x.utr || (x.hasUtrFile ? (x.utrStatus || 'NO UTR') : 'UTR file not loaded')), btn);
       }));

@@ -220,3 +220,11 @@ test('invoice search: partial number, party filter, paid UTR chosen over a retur
   assert.deepEqual(Fsc.searchInvoices(r, { party: 'bharat' }).map((x) => x.gstLot), ['77/FL26000083']);
   assert.equal(Fsc.searchInvoices(r, { q: '2600008' }).length, 3);
 });
+
+test('Service_DlrCd and Service_Loc are read and searchable', () => {
+  const rows = [[...HEAD, 'Service_DlrCd', 'Service_Loc'],
+    row('AMMOT', 472, 72, '70/FL1', '111111111111', 'HDFC BANK', 'HDFC0001234', [null, null, 'DC77', 'Kochi'])];
+  const r = Fsc.compute(rows, parties, { fileName: 'm.xlsx' });
+  const hit = Fsc.searchInvoices(r, { q: 'fl1' })[0];
+  assert.equal(hit.dlrCd, 'DC77'); assert.equal(hit.loc, 'Kochi');
+});

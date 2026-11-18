@@ -27,8 +27,8 @@ const toast = async (page, re) => { await page.waitForFunction((s) => !document.
   // the monthly file: columns in the cashier's own order, a title row above the headers, hidden Tax_Amt, formulas for the file's own columns
   const mw = new ExcelJS.Workbook(); const ws = mw.addWorksheet('Sheet1');
   ws.addRow(['FSC claims November 2026']);
-  ws.addRow(['Service Region Code', ' Service_parent', 'Party Name', 'Gst_Lot_Num', 'Lot_Date', ' Lot_Amt', ' Tax_Amt', 'Taxable', 'TDS', 'Payable', ' Service Dlr Account Number', 'Service Dlr Bank Name', 'Service Dlr IFSC Code', ' Status', 'Service DLR Remarks']);
-  const add = (parent, inv, lot, tax, acct, bank, ifsc, remark) => { const n = ws.rowCount + 1; ws.addRow(['S3', parent, null, inv, new Date(2026, 10, 2), lot, tax, { formula: `F${n}-G${n}`, result: lot - tax }, { formula: `ROUNDUP(H${n}*2/100,0)`, result: Math.ceil((lot - tax) * 0.02 - 1e-9) }, { formula: `F${n}-I${n}`, result: lot - Math.ceil((lot - tax) * 0.02 - 1e-9) }, acct, bank, ifsc, 'Pending', remark || null]); };
+  ws.addRow(['Service Region Code', ' Service_parent', 'Party Name', 'Gst_Lot_Num', 'Lot_Date', ' Lot_Amt', ' Tax_Amt', 'Taxable', 'TDS', 'Payable', ' Service Dlr Account Number', 'Service_DlrCd', 'Service_Loc', 'Service Dlr Bank Name', 'Service Dlr IFSC Code', ' Status', 'Service DLR Remarks']);
+  const add = (parent, inv, lot, tax, acct, bank, ifsc, remark) => { const n = ws.rowCount + 1; ws.addRow(['S3', parent, null, inv, new Date(2026, 10, 2), lot, tax, { formula: `F${n}-G${n}`, result: lot - tax }, { formula: `ROUNDUP(H${n}*2/100,0)`, result: Math.ceil((lot - tax) * 0.02 - 1e-9) }, { formula: `F${n}-I${n}`, result: lot - Math.ceil((lot - tax) * 0.02 - 1e-9) }, acct, 'D' + parent.slice(0, 2), 'Loc-' + parent.slice(0, 1), bank, ifsc, 'Pending', remark || null]); };
   add('AMMOT', '70/FL26000081', 472, 72, '50100123456789', 'HDFC BANK', 'HDFC0001234');
   add('AMMOT', '77/FL26000038', 472, 72, '50100123456789', 'HDFC BANK', 'HDFC0001234');
   add('AMMOT', '70/FL26000085', 738, 112.5, '50100123456789', 'HDFC BANK', 'HDFC0001234');
@@ -90,6 +90,7 @@ const toast = async (page, re) => { await page.waitForFunction((s) => !document.
   assert.equal(await page.$$eval('.fsc-hit', (e) => e.length), 1);
   await page.keyboard.press('Enter'); await toast(page, 'Copied UTR UTR000A');
   assert.equal(await clip(), 'UTR000A');
+  assert.match(await page.textContent('.fsc-hit'), /DAMLoc-A|DAM.*Loc-A/);
   assert.equal(await page.evaluate(() => document.activeElement.id), 'fsc-q');           // focus is back in the box, ready for the next invoice
   await page.keyboard.type('FL2600009');                                                  // replaced the selected text: matches 90 and 91..94 and 95
   await page.waitForFunction(() => document.querySelectorAll('.fsc-hit').length >= 4);

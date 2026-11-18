@@ -1,5 +1,8 @@
 # Cash Desk changes
 
+## 0.15.1 — Dealer code and location in the search
+- The invoice search lines now show the dealer code (Service_DlrCd) and the location (Service_Loc) from the monthly file. The invoice detail table, Excel and PDF carry both columns too.
+
 ## 0.15.0 — Service payment: invoice search that copies the UTR
 - **Search at the top of the Service payment screen.** After the monthly file and the UTR file are loaded the cursor goes to the Invoice number box. Type any part of the GST lot number (slashes and spaces are ignored); the matching invoices are listed with party, account number, amount to pay and UTR.
 - **Up / Down** choose a line. **Enter copies that invoice's UTR** to the clipboard and keeps the cursor in the box with the text selected, so the next invoice number replaces it. The toast shows what was copied.

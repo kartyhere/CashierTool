@@ -167,7 +167,7 @@ tr[tabindex]:focus .minus, tr[tabindex]:hover .minus { color: var(--ink); }
 .fsc-search { padding: 18px 20px; }
 .fsc-fields { display: grid; grid-template-columns: 1.5fr 1fr; gap: 10px; }
 .fsc-hits { margin-top: 8px; max-height: 232px; overflow-y: auto; }
-.fsc-hit { display: grid; grid-template-columns: 1.3fr 1.6fr 1.1fr 0.8fr 1.4fr auto; gap: 12px; align-items: center; padding: 8px 12px; border: 1px solid transparent; border-bottom-color: var(--line); font-size: 13px; }
+.fsc-hit { display: grid; grid-template-columns: 1.2fr 1.5fr 0.8fr 0.9fr 1.1fr 0.8fr 1.3fr auto; gap: 12px; align-items: center; padding: 8px 12px; border: 1px solid transparent; border-bottom-color: var(--line); font-size: 13px; }
 .fsc-hit.selected { background: var(--fill); color: var(--ink); }
 .fsc-hit .hit-amt { text-align: right; font-family: 'Geist Mono', monospace; }
 .fsc-hit .hit-utr { font-family: 'Geist Mono', monospace; font-weight: 600; }

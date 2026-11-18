@@ -22,6 +22,8 @@ const COLUMNS = {
   ifsc: { label: 'Service Dlr IFSC Code', names: ['servicedlrifsccode', 'servicedlrifsc', 'dealerifsccode'], need: true },
   bank: { label: 'Service Dlr Bank Name', names: ['servicedlrbankname', 'dealerbankname'], need: false },
   partyName: { label: 'Party Name', names: ['partyname'], need: false },
+  dlrCd: { label: 'Service_DlrCd', names: ['servicedlrcd', 'servicedealercode', 'dlrcd', 'dealercode'], need: false },
+  loc: { label: 'Service_Loc', names: ['serviceloc', 'servicelocation', 'loc', 'location'], need: false },
   lotNum: { label: 'Lot_Num', names: ['lotnum', 'lotnumber', 'lotno'], need: false },
   lotDate: { label: 'Lot_Date', names: ['lotdate'], need: false },
   remarks: { label: 'Service DLR Remarks', names: ['servicedlrremarks', 'servicedealerremarks', 'dlrremarks', 'dealerremarks', 'remarks', 'remark'], need: false },
@@ -114,6 +116,8 @@ function compute(rows, parties = new Map(), { fileName = '' } = {}) {
     line.lotDate = at('lotDate') instanceof Date ? at('lotDate').toISOString().slice(0, 10) : cleanText(at('lotDate'));
     line.parentCode = codeOf(at('parent'));
     line.remark = cleanText(at('remarks'));
+    line.dlrCd = cleanText(at('dlrCd'));
+    line.loc = cleanText(at('loc'));
 
     const lot = parseMoney(at('lotAmt'));
     const tax = parseMoney(at('taxAmt'));
@@ -335,8 +339,8 @@ function buildReport(result, { generated = '' } = {}) {
   const detail = {
     heading: 'Every invoice, under its bank account',
     columns: [col('account', 'Account number'), col('party', 'Party'), col('gstLot', 'GST lot number (invoice)'), col('lotDate', 'Lot date'), col('lot', 'Lot amount', 'money2'),
-      col('tax', 'Tax amount', 'money2'), col('taxable', 'Taxable', 'money2'), col('tds', 'TDS', 'money2'), col('toPay', 'To pay', 'money2'), col('remark', 'Dealer remark'), col('row', 'Row in file', 'int')],
-    rows: result.accounts.flatMap((a) => a.lines.map((l) => ({ account: a.account, party: l.party || `(code ${l.parentCode})`, gstLot: l.gstLot, lotDate: l.lotDate, lot: rupees(l.lotPaise), tax: rupees(l.taxPaise), taxable: rupees(l.taxable), tds: l.tds, toPay: rupees(l.toPay), remark: l.remark, row: l.row }))),
+      col('tax', 'Tax amount', 'money2'), col('taxable', 'Taxable', 'money2'), col('tds', 'TDS', 'money2'), col('toPay', 'To pay', 'money2'), col('dlrCd', 'Dealer code'), col('loc', 'Location'), col('remark', 'Dealer remark'), col('row', 'Row in file', 'int')],
+    rows: result.accounts.flatMap((a) => a.lines.map((l) => ({ account: a.account, party: l.party || `(code ${l.parentCode})`, gstLot: l.gstLot, lotDate: l.lotDate, lot: rupees(l.lotPaise), tax: rupees(l.taxPaise), taxable: rupees(l.taxable), tds: l.tds, toPay: rupees(l.toPay), dlrCd: l.dlrCd, loc: l.loc, remark: l.remark, row: l.row }))),
     totals: { lot: rupees(t.lotPlaced), tax: rupees(t.lotPlaced - t.taxable), taxable: rupees(t.taxable), tds: rupees(t.tds), toPay: rupees(t.toPay) },
   };
   const check = {
@@ -385,9 +389,9 @@ function searchInvoices(result, { q = '', party = '', limit = 50 } = {}) {
   for (const a of result.accounts) {
     const u = a.utr;
     const paid = u ? u.rows.find((h) => h.kind === 'paid' && h.utr) : null;
-    for (const l of a.lines) all.push({ row: l.row, gstLot: l.gstLot, party: l.party || a.party || '', account: a.account, ifsc: a.ifsc, bank: a.bank, toPay: l.toPay / 100, utr: paid ? paid.utr : '', utrStatus: u ? u.status : '', hasUtrFile: Boolean(u) });
+    for (const l of a.lines) all.push({ row: l.row, gstLot: l.gstLot, dlrCd: l.dlrCd || '', loc: l.loc || '', party: l.party || a.party || '', account: a.account, ifsc: a.ifsc, bank: a.bank, toPay: l.toPay / 100, utr: paid ? paid.utr : '', utrStatus: u ? u.status : '', hasUtrFile: Boolean(u) });
   }
-  for (const l of result.unplaced) all.push({ row: l.row, gstLot: l.gstLot, party: l.party || '', account: l.account || '', ifsc: '', bank: '', toPay: l.hasLot ? (l.toPay || 0) / 100 : 0, utr: '', utrStatus: 'NOT PAID', hasUtrFile: Boolean(result.utr) });
+  for (const l of result.unplaced) all.push({ row: l.row, gstLot: l.gstLot, dlrCd: l.dlrCd || '', loc: l.loc || '', party: l.party || '', account: l.account || '', ifsc: '', bank: '', toPay: l.hasLot ? (l.toPay || 0) / 100 : 0, utr: '', utrStatus: 'NOT PAID', hasUtrFile: Boolean(result.utr) });
   const rank = (x) => { const n = simple(x.gstLot); if (!needle) return 3; if (n === needle) return 0; if (n.endsWith(needle)) return 1; if (n.startsWith(needle)) return 2; return n.includes(needle) ? 3 : -1; };
   return all.filter((x) => (!pneedle || x.party.toLowerCase().includes(pneedle)) && rank(x) >= 0)
     .sort((a, b) => rank(a) - rank(b) || (a.party ? 0 : 1) - (b.party ? 0 : 1) || a.party.localeCompare(b.party) || a.gstLot.localeCompare(b.gstLot, 'en', { numeric: true })).slice(0, limit);
